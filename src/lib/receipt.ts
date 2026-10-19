@@ -216,15 +216,21 @@ export function drawReceipt(sale: Sale, settings: Settings, test = false) {
           drawn.push({ kind: 'text', text: block.sum, x: width - pad, y: height, font, align: 'right' })
         }
       })
+      if (!block.head) height += Math.round(body * 0.45)
     }
   }
 
   height += pad
-  canvas.width = width
-  canvas.height = Math.max(height, 200)
+  const pixelRatio = 3
+  canvas.width = width * pixelRatio
+  canvas.height = Math.max(height, 200) * pixelRatio
+  sharpCanvas(canvas).printerWidth = width
+  ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0)
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
   ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0, 0, canvas.width, canvas.height)
-  ctx.fillStyle = '#111111'
+  ctx.fillRect(0, 0, width, height)
+  ctx.fillStyle = '#000000'
   ctx.textBaseline = 'alphabetic'
 
   for (const op of drawn) {
@@ -247,10 +253,34 @@ export function drawReceipt(sale: Sale, settings: Settings, test = false) {
   return canvas
 }
 
+type SharpCanvas = HTMLCanvasElement & { printerWidth?: number }
+
+function sharpCanvas(canvas: HTMLCanvasElement) {
+  return canvas as SharpCanvas
+}
+
+function fitPrinterCanvas(canvas: HTMLCanvasElement) {
+  const targetWidth = sharpCanvas(canvas).printerWidth
+  if (!targetWidth || canvas.width === targetWidth) return canvas
+  const targetHeight = Math.max(1, Math.round(canvas.height * (targetWidth / canvas.width)))
+  const fitted = document.createElement('canvas')
+  fitted.width = targetWidth
+  fitted.height = targetHeight
+  const ctx = fitted.getContext('2d')
+  if (!ctx) return canvas
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, targetWidth, targetHeight)
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(canvas, 0, 0, targetWidth, targetHeight)
+  return fitted
+}
+
 export function canvasToEscPos(canvas: HTMLCanvasElement) {
-  const ctx = canvas.getContext('2d')
+  const fitted = fitPrinterCanvas(canvas)
+  const ctx = fitted.getContext('2d')
   if (!ctx) return new Uint8Array()
-  const { width, height } = canvas
+  const { width, height } = fitted
   const image = ctx.getImageData(0, 0, width, height)
   const widthBytes = Math.ceil(width / 8)
   const raster = new Uint8Array(widthBytes * height)

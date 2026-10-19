@@ -644,10 +644,12 @@ input, textarea { user-select: text; -webkit-user-select: text; }
   gap: 6px;
   align-items: start;
 }
+.paper .cols:not(.head) { margin-bottom: 11px; }
+.paper .cols:not(.head):has(+ .note) { margin-bottom: 2px; }
 .paper .cols span:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .paper .head { color: #555; font-size: 0.78em; }
 .paper .head span { white-space: nowrap; }
-.paper .note { color: #444; padding-left: 8px; }
+.paper .note { color: #444; padding-left: 8px; margin-bottom: 11px; }
 .paper .total { margin-top: 4px; }
 .paper .total.strong { margin-top: 8px; font-size: 1.25em; }
 .paper .total b { font-size: 1.35em; }
@@ -762,6 +764,8 @@ input, textarea { user-select: text; -webkit-user-select: text; }
     box-shadow: none;
     width: 80mm;
     max-width: none;
+    color: #000;
+    -webkit-font-smoothing: antialiased;
   }
   .paper[data-width="58 mm"] { width: 58mm; }
   @page { margin: 4mm; }

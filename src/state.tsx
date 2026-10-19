@@ -1,0 +1,197 @@
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import type { CartLine, DiscountType, MenuItem, Modifier, Payment, Route, Sale, Settings, Variant, ViewMode } from './types'
+import { DEFAULT_SETTINGS } from './types'
+import { round2, totals } from './lib/format'
+
+const STORAGE = {
+  cart: 'rose-pos:cart',
+  sales: 'rose-pos:sales',
+  settings: 'rose-pos:settings',
+  view: 'rose-pos:view',
+  draft: 'rose-pos:draft',
+}
+
+type Draft = {
+  table: string
+  discountType: DiscountType
+  discountValue: number
+}
+
+type PosApi = {
+  cart: CartLine[]
+  sales: Sale[]
+  settings: Settings
+  view: ViewMode
+  route: Route
+  table: string
+  discountType: DiscountType
+  discountValue: number
+  toast: string
+  setRoute: (route: Route) => void
+  setView: (view: ViewMode) => void
+  updateSettings: (patch: Partial<Settings>) => void
+  setTable: (table: string) => void
+  setDiscount: (type: DiscountType, value: number) => void
+  addItem: (item: MenuItem, options?: { variant?: Variant; modifiers?: Modifier[]; qty?: number; note?: string }) => void
+  setQty: (lineId: string, qty: number) => void
+  setNote: (lineId: string, note: string) => void
+  replaceLine: (lineId: string, line: CartLine) => void
+  removeLine: (lineId: string) => void
+  clearCart: () => void
+  checkout: (payment: Payment, cashReceived: number | null) => Sale
+  cancelSale: (saleId: string) => void
+  notify: (text: string) => void
+  qtyOf: (itemId: string) => number
+}
+
+const PosContext = createContext<PosApi | null>(null)
+
+function read<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return fallback
+    return JSON.parse(raw) as T
+  } catch {
+    return fallback
+  }
+}
+
+function write(key: string, value: unknown) {
+  localStorage.setItem(key, JSON.stringify(value))
+}
+
+function unitPrice(item: MenuItem, variant?: Variant, modifiers: Modifier[] = []) {
+  const base = variant?.price ?? item.price
+  return round2(base + modifiers.reduce((sum, modifier) => sum + modifier.price, 0))
+}
+
+export function PosProvider({ children }: { children: ReactNode }) {
+  const [cart, setCart] = useState<CartLine[]>(() => read(STORAGE.cart, []))
+  const [sales, setSales] = useState<Sale[]>(() => read(STORAGE.sales, []))
+  const [settings, setSettings] = useState<Settings>(() => ({ ...DEFAULT_SETTINGS, ...read(STORAGE.settings, {}) }))
+  const [view, setViewState] = useState<ViewMode>(() => read(STORAGE.view, 'cards'))
+  const [draft, setDraft] = useState<Draft>(() =>
+    read(STORAGE.draft, { table: '', discountType: 'none', discountValue: 0 }),
+  )
+  const [route, setRoute] = useState<Route>({ name: 'pos' })
+  const [toast, setToast] = useState('')
+
+  useEffect(() => write(STORAGE.cart, cart), [cart])
+  useEffect(() => write(STORAGE.sales, sales), [sales])
+  useEffect(() => write(STORAGE.settings, settings), [settings])
+  useEffect(() => write(STORAGE.view, view), [view])
+  useEffect(() => write(STORAGE.draft, draft), [draft])
+
+  const notify = (text: string) => {
+    setToast(text)
+    window.setTimeout(() => setToast((current) => (current === text ? '' : current)), 1800)
+  }
+
+  const api = useMemo<PosApi>(() => {
+    const addItem: PosApi['addItem'] = (item, options) => {
+      const variant = options?.variant
+      const modifiers = options?.modifiers ?? []
+      const note = options?.note?.trim() ?? ''
+      const qty = Math.max(1, options?.qty ?? 1)
+      const price = unitPrice(item, variant, modifiers)
+      setCart((current) => {
+        const index = current.findIndex(
+          (line) =>
+            line.itemId === item.id &&
+            line.variantId === variant?.id &&
+            line.note === note &&
+            line.modifiers.map((modifier) => modifier.id).join() === modifiers.map((modifier) => modifier.id).join(),
+        )
+        if (index >= 0 && !options?.qty) {
+          const next = [...current]
+          next[index] = { ...next[index], qty: Math.min(99, next[index].qty + 1) }
+          return next
+        }
+        if (index >= 0 && options?.qty) {
+          const next = [...current]
+          next[index] = { ...next[index], qty: Math.min(99, next[index].qty + qty), unitPrice: price }
+          return next
+        }
+        return [
+          ...current,
+          {
+            id: crypto.randomUUID(),
+            itemId: item.id,
+            name: item.name,
+            variantId: variant?.id,
+            variantName: variant?.name,
+            modifiers,
+            unitPrice: price,
+            qty: Math.min(99, qty),
+            note,
+          },
+        ]
+      })
+      navigator.vibrate?.(12)
+    }
+
+    return {
+      cart,
+      sales,
+      settings,
+      view,
+      route,
+      table: draft.table,
+      discountType: draft.discountType,
+      discountValue: draft.discountValue,
+      toast,
+      setRoute,
+      setView: setViewState,
+      updateSettings: (patch) => setSettings((current) => ({ ...current, ...patch })),
+      setTable: (table) => setDraft((current) => ({ ...current, table })),
+      setDiscount: (discountType, discountValue) => setDraft((current) => ({ ...current, discountType, discountValue })),
+      addItem,
+      setQty: (lineId, qty) =>
+        setCart((current) =>
+          qty <= 0 ? current.filter((line) => line.id !== lineId) : current.map((line) => (line.id === lineId ? { ...line, qty } : line)),
+        ),
+      setNote: (lineId, note) => setCart((current) => current.map((line) => (line.id === lineId ? { ...line, note } : line))),
+      replaceLine: (lineId, line) =>
+        setCart((current) => (line.qty <= 0 ? current.filter((item) => item.id !== lineId) : current.map((item) => (item.id === lineId ? line : item)))),
+      removeLine: (lineId) => setCart((current) => current.filter((line) => line.id !== lineId)),
+      clearCart: () => {
+        setCart([])
+        setDraft({ table: '', discountType: 'none', discountValue: 0 })
+      },
+      checkout: (payment, cashReceived) => {
+        const summary = totals(cart, draft.discountType, draft.discountValue)
+        const sale: Sale = {
+          id: crypto.randomUUID(),
+          createdAt: new Date().toISOString(),
+          staff: settings.staff.trim() || 'Администратор',
+          table: draft.table,
+          lines: cart,
+          discountType: draft.discountType,
+          discountValue: draft.discountValue,
+          subtotal: summary.subtotal,
+          discount: summary.discount,
+          total: summary.total,
+          payment,
+          cashReceived,
+          cancelled: false,
+        }
+        setSales((current) => [sale, ...current])
+        setCart([])
+        setDraft({ table: '', discountType: 'none', discountValue: 0 })
+        return sale
+      },
+      cancelSale: (saleId) =>
+        setSales((current) => current.map((sale) => (sale.id === saleId ? { ...sale, cancelled: true } : sale))),
+      notify,
+      qtyOf: (itemId) => cart.filter((line) => line.itemId === itemId).reduce((sum, line) => sum + line.qty, 0),
+    }
+  }, [cart, sales, settings, view, route, draft, toast])
+
+  return <PosContext.Provider value={api}>{children}</PosContext.Provider>
+}
+
+export function usePos() {
+  const value = useContext(PosContext)
+  if (!value) throw new Error('usePos вне провайдера')
+  return value
+}

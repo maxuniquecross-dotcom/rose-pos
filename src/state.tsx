@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { CartLine, DiscountType, MenuItem, Modifier, Payment, Route, Sale, Settings, Variant, ViewMode } from './types'
+import { GROUPS, MENU } from './data/menu'
+import type { CartLine, DiscountType, GroupId, MenuItem, Modifier, Payment, Route, Sale, Settings, Variant, ViewMode } from './types'
 import { DEFAULT_SETTINGS } from './types'
 import { round2, totals } from './lib/format'
 
@@ -9,6 +10,7 @@ const STORAGE = {
   settings: 'rose-pos:settings',
   view: 'rose-pos:view',
   draft: 'rose-pos:draft',
+  menu: 'rose-pos:menu',
 }
 
 type Draft = {
@@ -40,6 +42,9 @@ type PosApi = {
   clearCart: () => void
   checkout: (payment: Payment, cashReceived: number | null) => Sale
   cancelSale: (saleId: string) => void
+  catalog: MenuItem[]
+  addMenuItem: (input: { name: string; price: number; group: GroupId }) => void
+  removeMenuItem: (itemId: string) => void
   notify: (text: string) => void
   qtyOf: (itemId: string) => number
 }
@@ -73,14 +78,17 @@ export function PosProvider({ children }: { children: ReactNode }) {
   const [draft, setDraft] = useState<Draft>(() =>
     read(STORAGE.draft, { table: '', discountType: 'none', discountValue: 0 }),
   )
+  const [customItems, setCustomItems] = useState<MenuItem[]>(() => read(STORAGE.menu, []))
   const [route, setRoute] = useState<Route>({ name: 'pos' })
   const [toast, setToast] = useState('')
+  const catalog = useMemo(() => [...customItems, ...MENU], [customItems])
 
   useEffect(() => write(STORAGE.cart, cart), [cart])
   useEffect(() => write(STORAGE.sales, sales), [sales])
   useEffect(() => write(STORAGE.settings, settings), [settings])
   useEffect(() => write(STORAGE.view, view), [view])
   useEffect(() => write(STORAGE.draft, draft), [draft])
+  useEffect(() => write(STORAGE.menu, customItems), [customItems])
 
   const notify = (text: string) => {
     setToast(text)
@@ -182,10 +190,28 @@ export function PosProvider({ children }: { children: ReactNode }) {
       },
       cancelSale: (saleId) =>
         setSales((current) => current.map((sale) => (sale.id === saleId ? { ...sale, cancelled: true } : sale))),
+      catalog,
+      addMenuItem: ({ name, price, group }) => {
+        const section = GROUPS.find((entry) => entry.id === group)?.title ?? 'Своё'
+        const item: MenuItem = {
+          id: `custom-${crypto.randomUUID()}`,
+          group,
+          section,
+          name: name.trim(),
+          price: round2(price),
+          custom: true,
+        }
+        setCustomItems((current) => [item, ...current])
+        notify('Позиция добавлена в меню')
+      },
+      removeMenuItem: (itemId) => {
+        setCustomItems((current) => current.filter((item) => item.id !== itemId))
+        notify('Позиция убрана из меню')
+      },
       notify,
       qtyOf: (itemId) => cart.filter((line) => line.itemId === itemId).reduce((sum, line) => sum + line.qty, 0),
     }
-  }, [cart, sales, settings, view, route, draft, toast])
+  }, [cart, sales, settings, view, route, draft, toast, catalog])
 
   return <PosContext.Provider value={api}>{children}</PosContext.Provider>
 }

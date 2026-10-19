@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { GROUPS, MENU, SECTION_NOTES, groupOf } from '../data/menu'
+import { GROUPS, SECTION_NOTES, groupOf } from '../data/menu'
 import { money, norm, plural, priceLabel, totals } from '../lib/format'
 import type { GroupId, MenuItem } from '../types'
 import { usePos } from '../state'
-import { IconCheck, IconGrid, IconList, IconMenu, IconReceipt, IconSearch, IconUser } from './icons'
-import { CartSheet, CategorySheet, InstallHint, ItemSheet, StaffSheet } from './overlays'
+import { IconCheck, IconGrid, IconList, IconMenu, IconPlus, IconReceipt, IconSearch, IconUser } from './icons'
+import { AddMenuSheet, CartSheet, CategorySheet, Confirm, InstallHint, ItemSheet, StaffSheet } from './overlays'
 
 export function PosScreen() {
   const pos = usePos()
@@ -15,6 +15,8 @@ export function PosScreen() {
   const [cartOpen, setCartOpen] = useState(false)
   const [categoriesOpen, setCategoriesOpen] = useState(false)
   const [staffOpen, setStaffOpen] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const [dropId, setDropId] = useState<string | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
   const summary = totals(pos.cart, pos.discountType, pos.discountValue)
@@ -26,13 +28,13 @@ export function PosScreen() {
 
   const items = useMemo(() => {
     const q = norm(query.trim())
-    return MENU.filter((item) => {
+    return pos.catalog.filter((item) => {
       if (!q && group !== 'all' && item.group !== group) return false
       if (!q) return true
       const hay = norm(`${item.name} ${item.description ?? ''} ${item.section} ${item.weight ?? ''}`)
       return hay.includes(q)
     })
-  }, [group, query])
+  }, [group, query, pos.catalog])
 
   const sections = useMemo(() => {
     const map = new Map<string, MenuItem[]>()
@@ -125,9 +127,9 @@ export function PosScreen() {
             <div className={pos.view === 'cards' ? 'cards' : 'rows'}>
               {list.map((item) =>
                 pos.view === 'cards' ? (
-                  <Card key={item.id} item={item} qty={pos.qtyOf(item.id)} onOpen={() => openItem(item)} />
+                  <Card key={item.id} item={item} qty={pos.qtyOf(item.id)} onOpen={() => openItem(item)} onRemove={() => setDropId(item.id)} />
                 ) : (
-                  <Row key={item.id} item={item} qty={pos.qtyOf(item.id)} onOpen={() => openItem(item)} />
+                  <Row key={item.id} item={item} qty={pos.qtyOf(item.id)} onOpen={() => openItem(item)} onRemove={() => setDropId(item.id)} />
                 ),
               )}
             </div>
@@ -163,6 +165,9 @@ export function PosScreen() {
           <IconReceipt />
         </button>
         <div className="rail-gap" />
+        <button type="button" className="add" aria-label="Новая позиция" onClick={() => setAdding(true)}>
+          <IconPlus />
+        </button>
         <button type="button" className={count ? 'go on' : 'go'} aria-label="К оплате" onClick={goCheckout}>
           <IconCheck />
           {count > 0 && <i>{count}</i>}
@@ -184,11 +189,22 @@ export function PosScreen() {
         />
       )}
       {staffOpen && <StaffSheet onClose={() => setStaffOpen(false)} />}
+      {adding && <AddMenuSheet group={group === 'all' ? 'mains' : group} onClose={() => setAdding(false)} />}
+      {dropId && (
+        <Confirm
+          text="Убрать эту позицию из меню?"
+          onNo={() => setDropId(null)}
+          onYes={() => {
+            pos.removeMenuItem(dropId)
+            setDropId(null)
+          }}
+        />
+      )}
     </div>
   )
 }
 
-function Card({ item, qty, onOpen }: { item: MenuItem; qty: number; onOpen: () => void }) {
+function Card({ item, qty, onOpen, onRemove }: { item: MenuItem; qty: number; onOpen: () => void; onRemove: () => void }) {
   const pos = usePos()
   const complex = Boolean(item.variants?.length || item.modifiers?.length)
   const accent = groupOf(item.group).accent
@@ -196,9 +212,9 @@ function Card({ item, qty, onOpen }: { item: MenuItem; qty: number; onOpen: () =
   const simpleLine = pos.cart.find((line) => line.itemId === item.id && !line.variantId && line.modifiers.length === 0 && !line.note)
 
   return (
-    <article className={qty ? 'card in' : 'card'} style={{ ['--accent' as string]: accent }}>
+    <article className={`${qty ? 'card in' : 'card'}${item.custom ? ' has-x' : ''}`} style={{ ['--accent' as string]: accent }}>
       <button type="button" className="card-hit" onClick={onOpen}>
-        <span className="eyebrow">{item.section}</span>
+        <span className="eyebrow">{item.custom ? 'Своё' : item.section}</span>
         <strong>{item.name}</strong>
         {(item.description || item.weight) && (
           <em>
@@ -224,16 +240,28 @@ function Card({ item, qty, onOpen }: { item: MenuItem; qty: number; onOpen: () =
         )}
         <b>{priceLabel(item.price, item.variants)}</b>
       </footer>
+      {item.custom && (
+        <button type="button" className="card-x" aria-label="Убрать из меню" onClick={onRemove}>
+          ×
+        </button>
+      )}
     </article>
   )
 }
 
-function Row({ item, qty, onOpen }: { item: MenuItem; qty: number; onOpen: () => void }) {
+function Row({ item, qty, onOpen, onRemove }: { item: MenuItem; qty: number; onOpen: () => void; onRemove: () => void }) {
   return (
-    <button type="button" className={qty ? 'line in' : 'line'} onClick={onOpen}>
-      {qty > 0 && <i>{qty}</i>}
-      <span>{item.name}</span>
-      <b>{priceLabel(item.price, item.variants)}</b>
-    </button>
+    <div className={qty ? 'line in' : 'line'}>
+      <button type="button" onClick={onOpen}>
+        {qty > 0 && <i>{qty}</i>}
+        <span>{item.name}</span>
+        <b>{priceLabel(item.price, item.variants)}</b>
+      </button>
+      {item.custom && (
+        <button type="button" className="line-x" aria-label="Убрать из меню" onClick={onRemove}>
+          ×
+        </button>
+      )}
+    </div>
   )
 }

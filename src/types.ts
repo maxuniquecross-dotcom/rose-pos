@@ -35,6 +35,7 @@ export type MenuItem = {
   weight?: string
   variants?: Variant[]
   modifiers?: Modifier[]
+  custom?: boolean
 }
 
 export type CartLine = {

@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { GROUPS, MENU } from '../data/menu'
+import { GROUPS } from '../data/menu'
 import { lineSum, lineTitle, menuPrice, money, plural, round2, totals } from '../lib/format'
 import type { CartLine, GroupId, MenuItem } from '../types'
 import { usePos } from '../state'
@@ -121,7 +121,7 @@ export function CartSheet({ onClose }: { onClose: () => void }) {
   const [ask, setAsk] = useState(false)
   const summary = totals(pos.cart, pos.discountType, pos.discountValue)
   const count = pos.cart.reduce((sum, line) => sum + line.qty, 0)
-  const editingItem = edit ? MENU.find((item) => item.id === edit.itemId) : undefined
+  const editingItem = edit ? pos.catalog.find((item) => item.id === edit.itemId) : undefined
 
   return (
     <Sheet title="Заказ" onClose={onClose}>
@@ -196,15 +196,16 @@ export function CategorySheet({
   onPick: (group: GroupId | 'all') => void
   onClose: () => void
 }) {
+  const pos = usePos()
   const counts = new Map<string, number>()
-  for (const item of MENU) counts.set(item.group, (counts.get(item.group) ?? 0) + 1)
+  for (const item of pos.catalog) counts.set(item.group, (counts.get(item.group) ?? 0) + 1)
 
   return (
     <Sheet title="Категории" onClose={onClose}>
       <div className="cat-list">
         <button type="button" className={current === 'all' ? 'cat on' : 'cat'} onClick={() => onPick('all')}>
           <span>Все</span>
-          <b>{MENU.length}</b>
+          <b>{pos.catalog.length}</b>
         </button>
         {GROUPS.map((group) => (
           <button type="button" key={group.id} className={current === group.id ? 'cat on' : 'cat'} onClick={() => onPick(group.id)}>
@@ -272,6 +273,54 @@ export function StaffSheet({ onClose }: { onClose: () => void }) {
       >
         Настройки принтера
       </button>
+    </Sheet>
+  )
+}
+
+export function AddMenuSheet({ group, onClose }: { group: GroupId; onClose: () => void }) {
+  const pos = usePos()
+  const [name, setName] = useState('')
+  const [price, setPrice] = useState('')
+  const [section, setSection] = useState<GroupId>(group)
+  const amount = Number(price.replace(',', '.'))
+  const ready = name.trim().length > 0 && Number.isFinite(amount) && amount > 0
+
+  return (
+    <Sheet title="Новая позиция" onClose={onClose}>
+      <label className="field">
+        Название
+        <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Например, кетчуп" autoFocus />
+      </label>
+      <label className="field">
+        Цена
+        <input
+          inputMode="decimal"
+          value={price}
+          onChange={(event) => setPrice(event.target.value.replace(/[^\d,.]/g, ''))}
+          placeholder="0,00"
+        />
+      </label>
+      <p className="label">Раздел</p>
+      <div className="seg">
+        {GROUPS.map((entry) => (
+          <button type="button" key={entry.id} className={section === entry.id ? 'on' : ''} onClick={() => setSection(entry.id)}>
+            {entry.title}
+          </button>
+        ))}
+      </div>
+      <div className="sheet-actions">
+        <button
+          type="button"
+          className="btn primary"
+          disabled={!ready}
+          onClick={() => {
+            pos.addMenuItem({ name, price: amount, group: section })
+            onClose()
+          }}
+        >
+          Добавить в меню
+        </button>
+      </div>
     </Sheet>
   )
 }

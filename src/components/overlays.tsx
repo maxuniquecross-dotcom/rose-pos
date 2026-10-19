@@ -325,6 +325,86 @@ export function AddMenuSheet({ group, onClose }: { group: GroupId; onClose: () =
   )
 }
 
+function priceField(value: string, onChange: (next: string) => void) {
+  return (
+    <input
+      inputMode="decimal"
+      value={value}
+      onChange={(event) => onChange(event.target.value.replace(/[^\d,.]/g, ''))}
+      placeholder="0,00"
+    />
+  )
+}
+
+function parsePrice(value: string) {
+  const amount = Number(value.replace(',', '.'))
+  return Number.isFinite(amount) && amount > 0 ? amount : null
+}
+
+export function EditMenuSheet({ item, onClose }: { item: MenuItem; onClose: () => void }) {
+  const pos = usePos()
+  const [name, setName] = useState(item.name)
+  const [price, setPrice] = useState(money(item.price))
+  const [variantPrices, setVariantPrices] = useState<Record<string, string>>(() =>
+    Object.fromEntries((item.variants ?? []).map((variant) => [variant.id, money(variant.price)])),
+  )
+  const variantAmounts = (item.variants ?? []).map((variant) => parsePrice(variantPrices[variant.id] ?? ''))
+  const amount = parsePrice(price)
+  const ready = name.trim().length > 0 && (item.variants?.length ? variantAmounts.every((value) => value !== null) : amount !== null)
+
+  return (
+    <Sheet title="Изменить блюдо" onClose={onClose}>
+      <label className="field">
+        Название
+        <input value={name} onChange={(event) => setName(event.target.value)} autoFocus />
+      </label>
+      {item.variants?.length ? (
+        item.variants.map((variant) => (
+          <label className="field" key={variant.id}>
+            {variant.name}
+            {priceField(variantPrices[variant.id] ?? '', (next) => setVariantPrices((current) => ({ ...current, [variant.id]: next })))}
+          </label>
+        ))
+      ) : (
+        <label className="field">
+          Цена
+          {priceField(price, setPrice)}
+        </label>
+      )}
+      <div className="sheet-actions">
+        <button
+          type="button"
+          className="btn primary"
+          disabled={!ready}
+          onClick={() => {
+            const variants = item.variants?.map((variant, index) => ({ id: variant.id, price: variantAmounts[index] ?? variant.price }))
+            pos.updateMenuItem(item.id, {
+              name,
+              price: variants?.length ? Math.min(...variants.map((variant) => variant.price)) : (amount ?? item.price),
+              variants,
+            })
+            onClose()
+          }}
+        >
+          Сохранить
+        </button>
+        {item.edited && !item.custom && (
+          <button
+            type="button"
+            className="btn ghost"
+            onClick={() => {
+              pos.resetMenuItem(item.id)
+              onClose()
+            }}
+          >
+            Как в меню
+          </button>
+        )}
+      </div>
+    </Sheet>
+  )
+}
+
 export function InstallHint() {
   const [open, setOpen] = useState(false)
   const [hidden, setHidden] = useState(true)

@@ -55,6 +55,15 @@ export function IconSearch({ size = 22 }: IconProps) {
   )
 }
 
+export function IconPencil({ size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4 20h4.2L19.5 8.7a2 2 0 0 0 0-2.8l-.4-.4a2 2 0 0 0-2.8 0L5 16.8V20Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M13.5 6.5 17.5 10.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 export function IconPlus({ size = 22 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">

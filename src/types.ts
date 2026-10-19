@@ -36,6 +36,7 @@ export type MenuItem = {
   variants?: Variant[]
   modifiers?: Modifier[]
   custom?: boolean
+  edited?: boolean
 }
 
 export type CartLine = {

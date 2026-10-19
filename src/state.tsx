@@ -11,6 +11,13 @@ const STORAGE = {
   view: 'rose-pos:view',
   draft: 'rose-pos:draft',
   menu: 'rose-pos:menu',
+  edits: 'rose-pos:edits',
+}
+
+type MenuEdit = {
+  name: string
+  price: number
+  variants?: { id: string; price: number }[]
 }
 
 type Draft = {
@@ -44,6 +51,8 @@ type PosApi = {
   cancelSale: (saleId: string) => void
   catalog: MenuItem[]
   addMenuItem: (input: { name: string; price: number; group: GroupId }) => void
+  updateMenuItem: (itemId: string, patch: MenuEdit) => void
+  resetMenuItem: (itemId: string) => void
   removeMenuItem: (itemId: string) => void
   notify: (text: string) => void
   qtyOf: (itemId: string) => number
@@ -79,9 +88,26 @@ export function PosProvider({ children }: { children: ReactNode }) {
     read(STORAGE.draft, { table: '', discountType: 'none', discountValue: 0 }),
   )
   const [customItems, setCustomItems] = useState<MenuItem[]>(() => read(STORAGE.menu, []))
+  const [edits, setEdits] = useState<Record<string, MenuEdit>>(() => read(STORAGE.edits, {}))
   const [route, setRoute] = useState<Route>({ name: 'pos' })
   const [toast, setToast] = useState('')
-  const catalog = useMemo(() => [...customItems, ...MENU], [customItems])
+  const catalog = useMemo(() => {
+    const apply = (item: MenuItem): MenuItem => {
+      const edit = edits[item.id]
+      if (!edit) return item
+      return {
+        ...item,
+        name: edit.name,
+        price: edit.price,
+        edited: true,
+        variants: item.variants?.map((variant) => {
+          const next = edit.variants?.find((entry) => entry.id === variant.id)
+          return next ? { ...variant, price: next.price } : variant
+        }),
+      }
+    }
+    return [...customItems.map(apply), ...MENU.map(apply)]
+  }, [customItems, edits])
 
   useEffect(() => write(STORAGE.cart, cart), [cart])
   useEffect(() => write(STORAGE.sales, sales), [sales])
@@ -89,6 +115,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
   useEffect(() => write(STORAGE.view, view), [view])
   useEffect(() => write(STORAGE.draft, draft), [draft])
   useEffect(() => write(STORAGE.menu, customItems), [customItems])
+  useEffect(() => write(STORAGE.edits, edits), [edits])
 
   const notify = (text: string) => {
     setToast(text)
@@ -204,8 +231,68 @@ export function PosProvider({ children }: { children: ReactNode }) {
         setCustomItems((current) => [item, ...current])
         notify('Позиция добавлена в меню')
       },
+      updateMenuItem: (itemId, patch) => {
+        const name = patch.name.trim()
+        const price = round2(patch.price)
+        const variants = patch.variants?.map((variant) => ({ id: variant.id, price: round2(variant.price) }))
+        const custom = customItems.some((item) => item.id === itemId)
+        if (custom) {
+          setCustomItems((current) =>
+            current.map((item) =>
+              item.id === itemId
+                ? {
+                    ...item,
+                    name,
+                    price,
+                    variants: item.variants?.map((variant) => {
+                      const next = variants?.find((entry) => entry.id === variant.id)
+                      return next ? { ...variant, price: next.price } : variant
+                    }),
+                  }
+                : item,
+            ),
+          )
+        } else {
+          setEdits((current) => ({ ...current, [itemId]: { name, price, variants } }))
+        }
+        setCart((current) =>
+          current.map((line) => {
+            if (line.itemId !== itemId) return line
+            const variantPrice = variants?.find((variant) => variant.id === line.variantId)?.price
+            const base = variantPrice ?? price
+            const extra = line.modifiers.reduce((sum, modifier) => sum + modifier.price, 0)
+            return { ...line, name, unitPrice: round2(base + extra) }
+          }),
+        )
+        notify('Блюдо обновлено')
+      },
+      resetMenuItem: (itemId) => {
+        const original = MENU.find((item) => item.id === itemId)
+        setEdits((current) => {
+          const next = { ...current }
+          delete next[itemId]
+          return next
+        })
+        if (original) {
+          setCart((current) =>
+            current.map((line) => {
+              if (line.itemId !== itemId) return line
+              const variant = original.variants?.find((entry) => entry.id === line.variantId)
+              const extra = line.modifiers.reduce((sum, modifier) => sum + modifier.price, 0)
+              return { ...line, name: original.name, unitPrice: round2((variant?.price ?? original.price) + extra) }
+            }),
+          )
+        }
+        notify('Вернул как в меню')
+      },
       removeMenuItem: (itemId) => {
         setCustomItems((current) => current.filter((item) => item.id !== itemId))
+        setEdits((current) => {
+          if (!current[itemId]) return current
+          const next = { ...current }
+          delete next[itemId]
+          return next
+        })
         notify('Позиция убрана из меню')
       },
       notify,

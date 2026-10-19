@@ -180,18 +180,25 @@ input, textarea { user-select: text; -webkit-user-select: text; }
   background: var(--accent);
 }
 .card.in { border-color: rgba(61, 206, 139, 0.55); }
-.card.has-x .card-hit { padding-right: 34px; }
-.card-x {
+.card.has-tools .card-hit { padding-right: 40px; }
+.card.has-x .card-hit { padding-right: 72px; }
+.card-tools {
   position: absolute;
   z-index: 1;
-  top: 8px;
-  right: 8px;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 4px;
+}
+.card-tool {
   width: 28px;
   height: 28px;
   border: 0;
   border-radius: 50%;
   background: #101218;
   color: var(--muted);
+  display: grid;
+  place-items: center;
   font-size: 18px;
   line-height: 1;
 }
@@ -293,6 +300,9 @@ input, textarea { user-select: text; -webkit-user-select: text; }
   background: transparent;
   color: var(--muted);
   font-size: 18px;
+  display: grid;
+  place-items: center;
+  flex: none;
 }
 .line.in { border-color: rgba(61, 206, 139, 0.45); }
 .line span { flex: 1; font-size: 14px; line-height: 1.25; }
@@ -448,7 +458,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 }
 .qty-row { margin: 8px auto 14px; }
 .qty-row button { width: 44px; height: 44px; }
-.sheet-actions { display: flex; gap: 8px; }
+.sheet-actions { display: flex; gap: 8px; margin-top: 8px; }
 .btn {
   flex: 1;
   border: 0;

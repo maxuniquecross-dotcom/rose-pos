@@ -1,4 +1,4 @@
-const CACHE = 'rose-pos-v6'
+const CACHE = 'rose-pos-v7'
 
 self.addEventListener('install', (event) => {
   event.waitUntil(self.skipWaiting())

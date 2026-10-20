@@ -105,17 +105,13 @@ export function AdminScreen() {
   }
 
   return (
-    <div className="history light-admin">
-      <header className="settings-nav">
-        <button
-          type="button"
-          className="left"
-          onClick={() => (person ? setPicked(null) : pos.setRoute({ name: 'pos' }))}
-        >
+    <div className="history">
+      <header className="subhead">
+        <button type="button" onClick={() => (person ? setPicked(null) : pos.setRoute({ name: 'pos' }))}>
           <IconBack /> Назад
         </button>
         <h1>{person ? person.staff : 'Сотрудники'}</h1>
-        <button type="button" className="right" onClick={() => void auth.signOut()}>
+        <button type="button" onClick={() => void auth.signOut()}>
           Выйти
         </button>
       </header>

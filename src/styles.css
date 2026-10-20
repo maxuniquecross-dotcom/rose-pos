@@ -764,7 +764,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .login .brand { font-size: 40px; }
 .login p { color: var(--muted); margin: 0 0 8px; }
 .login-error { color: #ff8d8d; margin: 0; }
-.light .login-error, .light-admin .login-error { color: #c2413b; }
+.light .login-error { color: #c2413b; }
 .admin-form {
   margin-top: 18px;
   display: flex;
@@ -773,9 +773,6 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 }
 .admin-form h2 { margin: 8px 0 0; font-size: 16px; }
 .admin-reset { margin: 0 0 12px; }
-.light-admin { background: #f2f2f7; color: #111; }
-.light-admin .subhead { background: rgba(242, 242, 247, 0.92); }
-.light-admin .sale { background: white; }
 
 .print-copy { display: none; }
 

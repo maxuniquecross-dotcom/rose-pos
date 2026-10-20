@@ -46,7 +46,7 @@ function Gate() {
 
 function Shell() {
   const { route, toast } = usePos()
-  const light = route.name === 'settings' || route.name === 'admin'
+  const light = route.name === 'settings'
   return (
     <div className={`phone ${light ? 'light' : ''}`}>
       {route.name === 'pos' && <PosScreen />}

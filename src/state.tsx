@@ -3,6 +3,8 @@ import { GROUPS, MENU } from './data/menu'
 import type { CartLine, DiscountType, GroupId, MenuItem, Modifier, Payment, Route, Sale, Settings, Variant, ViewMode } from './types'
 import { DEFAULT_SETTINGS } from './types'
 import { round2, totals } from './lib/format'
+import { flushOutbox, mergeSales, pullMySales, pushCancel, pushSale, saveStaff } from './lib/cloud'
+import { supabase } from './lib/supabase'
 
 const STORAGE = {
   cart: 'rose-pos:cart',
@@ -55,6 +57,8 @@ type PosApi = {
   resetMenuItem: (itemId: string) => void
   removeMenuItem: (itemId: string) => void
   notify: (text: string) => void
+  preview: Sale | null
+  showSale: (sale: Sale) => void
   qtyOf: (itemId: string) => number
 }
 
@@ -91,6 +95,8 @@ export function PosProvider({ children }: { children: ReactNode }) {
   const [edits, setEdits] = useState<Record<string, MenuEdit>>(() => read(STORAGE.edits, {}))
   const [route, setRoute] = useState<Route>({ name: 'pos' })
   const [toast, setToast] = useState('')
+  const [accountId, setAccountId] = useState<string | null>(null)
+  const [preview, setPreview] = useState<Sale | null>(null)
   const catalog = useMemo(() => {
     const apply = (item: MenuItem): MenuItem => {
       const edit = edits[item.id]
@@ -116,6 +122,21 @@ export function PosProvider({ children }: { children: ReactNode }) {
   useEffect(() => write(STORAGE.draft, draft), [draft])
   useEffect(() => write(STORAGE.menu, customItems), [customItems])
   useEffect(() => write(STORAGE.edits, edits), [edits])
+
+  useEffect(() => {
+    if (!supabase) return
+    const apply = (userId: string | null) => {
+      setAccountId(userId)
+      if (!userId) return
+      void pullMySales(userId).then((remote) => {
+        setSales((current) => mergeSales(current, remote))
+      })
+      void flushOutbox()
+    }
+    void supabase.auth.getSession().then(({ data }) => apply(data.session?.user.id ?? null))
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => apply(session?.user.id ?? null))
+    return () => data.subscription.unsubscribe()
+  }, [])
 
   const notify = (text: string) => {
     setToast(text)
@@ -167,7 +188,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
 
     return {
       cart,
-      sales,
+      sales: accountId ? sales.filter((sale) => sale.userId === accountId) : sales,
       settings,
       view,
       route,
@@ -177,7 +198,10 @@ export function PosProvider({ children }: { children: ReactNode }) {
       toast,
       setRoute,
       setView: setViewState,
-      updateSettings: (patch) => setSettings((current) => ({ ...current, ...patch })),
+      updateSettings: (patch) => {
+        setSettings((current) => ({ ...current, ...patch }))
+        if (patch.staff !== undefined) void saveStaff(patch.staff)
+      },
       setTable: (table) => setDraft((current) => ({ ...current, table })),
       setDiscount: (discountType, discountValue) => setDraft((current) => ({ ...current, discountType, discountValue })),
       addItem,
@@ -209,14 +233,23 @@ export function PosProvider({ children }: { children: ReactNode }) {
           payment,
           cashReceived,
           cancelled: false,
+          userId: accountId ?? undefined,
         }
         setSales((current) => [sale, ...current])
         setCart([])
         setDraft({ table: '', discountType: 'none', discountValue: 0 })
+        void pushSale(sale)
         return sale
       },
       cancelSale: (saleId) =>
-        setSales((current) => current.map((sale) => (sale.id === saleId ? { ...sale, cancelled: true } : sale))),
+        setSales((current) =>
+          current.map((sale) => {
+            if (sale.id !== saleId) return sale
+            const next = { ...sale, cancelled: true }
+            void pushCancel(next)
+            return next
+          }),
+        ),
       catalog,
       addMenuItem: ({ name, price, group }) => {
         const section = GROUPS.find((entry) => entry.id === group)?.title ?? 'Своё'
@@ -296,9 +329,15 @@ export function PosProvider({ children }: { children: ReactNode }) {
         notify('Позиция убрана из меню')
       },
       notify,
+      preview,
+      showSale: (sale) => {
+        setPreview(sale)
+        setSales((current) => (current.some((item) => item.id === sale.id) ? current : [sale, ...current]))
+        setRoute({ name: 'receipt', saleId: sale.id, fresh: false })
+      },
       qtyOf: (itemId) => cart.filter((line) => line.itemId === itemId).reduce((sum, line) => sum + line.qty, 0),
     }
-  }, [cart, sales, settings, view, route, draft, toast, catalog])
+  }, [cart, sales, settings, view, route, draft, toast, catalog, accountId, preview])
 
   return <PosContext.Provider value={api}>{children}</PosContext.Provider>
 }

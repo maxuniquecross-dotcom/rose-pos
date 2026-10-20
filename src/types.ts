@@ -68,6 +68,7 @@ export type Sale = {
   payment: Payment
   cashReceived: number | null
   cancelled: boolean
+  userId?: string
 }
 
 export type PrinterType = 'Bluetooth' | 'Системная печать'
@@ -121,5 +122,6 @@ export type Route =
   | { name: 'history' }
   | { name: 'receipt'; saleId: string; fresh: boolean }
   | { name: 'test-receipt' }
+  | { name: 'admin' }
 
 export type ViewMode = 'cards' | 'list'

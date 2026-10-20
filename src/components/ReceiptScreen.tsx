@@ -11,7 +11,10 @@ const PAYMENT = { cash: 'Наличные', card: 'Карта', transfer: 'Пе�
 export function ReceiptScreen() {
   const pos = usePos()
   const test = pos.route.name === 'test-receipt'
-  const sale = test ? testSale(pos.settings.staff) : pos.sales.find((item) => pos.route.name === 'receipt' && item.id === pos.route.saleId)
+  const openedId = pos.route.name === 'receipt' ? pos.route.saleId : ''
+  const sale = test
+    ? testSale(pos.settings.staff)
+    : pos.sales.find((item) => item.id === openedId) ?? (pos.preview?.id === openedId ? pos.preview : undefined)
   const [ask, setAsk] = useState(false)
   const fresh = pos.route.name === 'receipt' && pos.route.fresh
 
@@ -104,8 +107,12 @@ export function ReceiptScreen() {
           </button>
         )}
         {!fresh && !test && (
-          <button type="button" className="btn ghost" onClick={() => pos.setRoute({ name: 'history' })}>
-            К чекам
+          <button
+            type="button"
+            className="btn ghost"
+            onClick={() => pos.setRoute({ name: pos.preview?.id === sale.id ? 'admin' : 'history' })}
+          >
+            {pos.preview?.id === sale.id ? 'К сотруднику' : 'К чекам'}
           </button>
         )}
         {test && (

@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { GROUPS } from '../data/menu'
 import { lineSum, lineTitle, menuPrice, money, plural, round2, totals } from '../lib/format'
 import type { CartLine, GroupId, MenuItem } from '../types'
+import { useAuth } from '../auth'
 import { usePos } from '../state'
 
 export function ItemSheet({
@@ -223,6 +224,7 @@ export function CategorySheet({
 
 export function StaffSheet({ onClose }: { onClose: () => void }) {
   const pos = usePos()
+  const auth = useAuth()
   const todayKey = new Date().toDateString()
   const today = pos.sales.filter((sale) => !sale.cancelled && new Date(sale.createdAt).toDateString() === todayKey)
   const sum = today.reduce((total, sale) => total + sale.total, 0)
@@ -273,6 +275,23 @@ export function StaffSheet({ onClose }: { onClose: () => void }) {
       >
         Настройки принтера
       </button>
+      {auth.profile?.role === 'admin' && (
+        <button
+          type="button"
+          className="btn ghost"
+          onClick={() => {
+            onClose()
+            pos.setRoute({ name: 'admin' })
+          }}
+        >
+          Сотрудники
+        </button>
+      )}
+      {auth.configured && (
+        <button type="button" className="btn text" onClick={() => void auth.signOut()}>
+          Выйти
+        </button>
+      )}
     </Sheet>
   )
 }

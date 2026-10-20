@@ -106,16 +106,16 @@ export function AdminScreen() {
 
   return (
     <div className="history light-admin">
-      <header className="subhead">
+      <header className="settings-nav">
         <button
           type="button"
-          aria-label="Назад"
+          className="left"
           onClick={() => (person ? setPicked(null) : pos.setRoute({ name: 'pos' }))}
         >
-          <IconBack />
+          <IconBack /> Назад
         </button>
         <h1>{person ? person.staff : 'Сотрудники'}</h1>
-        <button type="button" onClick={() => void auth.signOut()}>
+        <button type="button" className="right" onClick={() => void auth.signOut()}>
           Выйти
         </button>
       </header>

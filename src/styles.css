@@ -576,7 +576,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 }
 .seg button.on { background: #f4f1ea; color: #1a1614; border-color: #f4f1ea; }
 .seg.pay button { flex: 1; }
-.light-field input { background: var(--card); }
+.light-field input { background: var(--card); color: var(--text); color-scheme: dark; }
 .guest-row { display: grid; grid-template-columns: 1.4fr 0.8fr; gap: 8px; }
 .cashbox { margin-top: 12px; }
 .cash-readout {
@@ -634,7 +634,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
   color: var(--ink);
   padding: 18px 14px 16px;
   box-shadow: none;
-  font-family: "Courier New", ui-monospace, Menlo, monospace;
+  font-family: Arial, Helvetica, sans-serif;
   font-weight: 400;
 }
 .paper h1 { margin: 0 0 2px; text-align: center; font-size: 1.05em; font-weight: 400; font-family: inherit; }

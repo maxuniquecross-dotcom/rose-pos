@@ -1,7 +1,8 @@
 import type { Sale, Settings } from '../types'
 import { formatTime, lineSum, lineTitle, receiptDate, receiptMoney } from './format'
 
-const FACE = '"Courier New", ui-monospace, Menlo, monospace'
+// Arial 13 — из перечня ГОСТ Р 7.0.97-2016 (п. 3.3): есть на iPhone, колонки не разъезжаются.
+const FACE = 'Arial, Helvetica, sans-serif'
 
 export type ReceiptBlock =
   | { type: 'title'; text: string }
@@ -34,14 +35,15 @@ export function receiptBlocks(sale: Sale, settings: Settings, test = false): Rec
     { type: 'gap' },
     { type: 'trio', cells: [`Чек ${checkLabel(sale)}`, `Стол # ${sale.table.trim() || '—'}`, `Гостей ${sale.guests || '—'}`] },
     { type: 'trio', cells: [receiptDate(sale.createdAt), `Открыт ${formatTime(opened)}`, `Печать ${formatTime(sale.createdAt)}`] },
-    { type: 'pair', label: 'Кассир:', value: sale.staff },
-    { type: 'pair', label: 'Официант:', value: sale.staff },
+    { type: 'pair', label: 'Кассир:', value: sale.cashier?.trim() || sale.staff },
+    { type: 'pair', label: 'Официант:', value: sale.waiter?.trim() || sale.staff },
     { type: 'gap' },
   ]
 
   if (test) blocks.push({ type: 'center', text: 'ТЕСТОВАЯ ПЕЧАТЬ' })
 
   blocks.push({ type: 'cols', head: true, name: 'Блюдо', price: 'Цена', qty: 'Кол-во', sum: 'Сумма' })
+  blocks.push({ type: 'dash' })
 
   for (const line of sale.lines) {
     blocks.push({
@@ -157,8 +159,8 @@ function printerDots(mm: number, calibration = 1) {
 export function drawReceipt(sale: Sale, settings: Settings, test = false) {
   const width = printerDots(settings.paperWidthMm, settings.widthCalibration)
   const scale = fontScale(settings) * (width / 320)
-  const body = Math.round(15 * scale)
-  const title = Math.round(22 * scale)
+  const body = Math.round(13 * scale)
+  const title = body
   const leading = lineGap(settings)
   const pad = Math.max(8, Math.round(10 * scale))
   const blocks = receiptBlocks(sale, settings, test)
@@ -167,7 +169,7 @@ export function drawReceipt(sale: Sale, settings: Settings, test = false) {
   const ctx = canvas.getContext('2d')
   if (!ctx) return canvas
 
-  ctx.font = `${body}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
+  ctx.font = `${body}px ${FACE}`
   const contentWidth = width - pad * 2
   let height = pad
 

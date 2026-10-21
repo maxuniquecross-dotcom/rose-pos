@@ -26,12 +26,25 @@ type Draft = {
   table: string
   guests: number
   openedAt: string
+  cashier: string
+  waiter: string
   discountType: DiscountType
   discountValue: number
 }
 
 function emptyDraft(): Draft {
-  return { table: '', guests: 0, openedAt: '', discountType: 'none', discountValue: 0 }
+  return { table: '', guests: 0, openedAt: '', cashier: '', waiter: '', discountType: 'none', discountValue: 0 }
+}
+
+function loadDraft(): Draft {
+  return { ...emptyDraft(), ...read<Partial<Draft>>(STORAGE.draft, {}) }
+}
+
+function withClock(iso: string, hours: number, minutes: number) {
+  const date = iso ? new Date(iso) : new Date()
+  const base = Number.isNaN(date.getTime()) ? new Date() : date
+  base.setHours(hours, minutes, 0, 0)
+  return base.toISOString()
 }
 
 function nextCheckNo() {
@@ -50,6 +63,9 @@ type PosApi = {
   route: Route
   table: string
   guests: number
+  openedAt: string
+  cashier: string
+  waiter: string
   discountType: DiscountType
   discountValue: number
   toast: string
@@ -58,6 +74,9 @@ type PosApi = {
   updateSettings: (patch: Partial<Settings>) => void
   setTable: (table: string) => void
   setGuests: (guests: number) => void
+  setOpenedTime: (value: string) => void
+  setCashier: (cashier: string) => void
+  setWaiter: (waiter: string) => void
   setDiscount: (type: DiscountType, value: number) => void
   addItem: (item: MenuItem, options?: { variant?: Variant; modifiers?: Modifier[]; qty?: number; note?: string }) => void
   setQty: (lineId: string, qty: number) => void
@@ -126,9 +145,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
   const [sales, setSales] = useState<Sale[]>(() => read(STORAGE.sales, []))
   const [settings, setSettings] = useState<Settings>(loadSettings)
   const [view, setViewState] = useState<ViewMode>(() => read(STORAGE.view, 'cards'))
-  const [draft, setDraft] = useState<Draft>(() =>
-    read(STORAGE.draft, emptyDraft()),
-  )
+  const [draft, setDraft] = useState<Draft>(loadDraft)
   const [customItems, setCustomItems] = useState<MenuItem[]>(() => read(STORAGE.menu, []))
   const [edits, setEdits] = useState<Record<string, MenuEdit>>(() => read(STORAGE.edits, {}))
   const [route, setRoute] = useState<Route>({ name: 'pos' })
@@ -233,6 +250,9 @@ export function PosProvider({ children }: { children: ReactNode }) {
       route,
       table: draft.table,
       guests: draft.guests,
+      openedAt: draft.openedAt,
+      cashier: draft.cashier,
+      waiter: draft.waiter,
       discountType: draft.discountType,
       discountValue: draft.discountValue,
       toast,
@@ -244,6 +264,13 @@ export function PosProvider({ children }: { children: ReactNode }) {
       },
       setTable: (table) => setDraft((current) => ({ ...current, table })),
       setGuests: (guests) => setDraft((current) => ({ ...current, guests: Math.max(0, Math.round(guests)) })),
+      setOpenedTime: (value) => {
+        const match = /^(\d{2}):(\d{2})$/.exec(value)
+        if (!match) return
+        setDraft((current) => ({ ...current, openedAt: withClock(current.openedAt, Number(match[1]), Number(match[2])) }))
+      },
+      setCashier: (cashier) => setDraft((current) => ({ ...current, cashier })),
+      setWaiter: (waiter) => setDraft((current) => ({ ...current, waiter })),
       setDiscount: (discountType, discountValue) => setDraft((current) => ({ ...current, discountType, discountValue })),
       addItem,
       setQty: (lineId, qty) =>
@@ -264,6 +291,8 @@ export function PosProvider({ children }: { children: ReactNode }) {
           id: crypto.randomUUID(),
           createdAt: new Date().toISOString(),
           staff: settings.staff.trim() || 'Администратор',
+          cashier: draft.cashier.trim() || settings.staff.trim() || 'Администратор',
+          waiter: draft.waiter.trim() || settings.staff.trim() || 'Администратор',
           openedAt: draft.openedAt || new Date().toISOString(),
           checkNo: nextCheckNo(),
           guests: draft.guests || undefined,

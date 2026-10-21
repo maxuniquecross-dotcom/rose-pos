@@ -60,6 +60,8 @@ export type Sale = {
   openedAt?: string
   checkNo?: number
   guests?: number
+  cashier?: string
+  waiter?: string
   staff: string
   table: string
   lines: CartLine[]

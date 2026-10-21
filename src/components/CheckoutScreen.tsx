@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { money, plural, totals } from '../lib/format'
+import { formatTime, money, plural, totals } from '../lib/format'
 import type { Payment } from '../types'
 import { usePos } from '../state'
 import { IconBack } from './icons'
@@ -113,6 +113,32 @@ export function CheckoutScreen() {
               value={pos.guests ? String(pos.guests) : ''}
               onChange={(event) => pos.setGuests(Number(event.target.value.replace(/\D/g, '')) || 0)}
               placeholder="—"
+            />
+          </label>
+        </div>
+        <label className="field light-field">
+          Время открытия
+          <input
+            type="time"
+            value={formatTime(pos.openedAt || new Date().toISOString())}
+            onChange={(event) => pos.setOpenedTime(event.target.value)}
+          />
+        </label>
+        <div className="guest-row">
+          <label className="field light-field">
+            Кассир
+            <input
+              value={pos.cashier}
+              placeholder={pos.settings.staff}
+              onChange={(event) => pos.setCashier(event.target.value)}
+            />
+          </label>
+          <label className="field light-field">
+            Официант
+            <input
+              value={pos.waiter}
+              placeholder={pos.settings.staff}
+              onChange={(event) => pos.setWaiter(event.target.value)}
             />
           </label>
         </div>

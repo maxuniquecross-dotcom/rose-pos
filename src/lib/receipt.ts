@@ -1,8 +1,8 @@
 import type { Sale, Settings } from '../types'
 import { formatTime, lineSum, lineTitle, receiptDate, receiptMoney } from './format'
 
-// Arial 13 — из перечня ГОСТ Р 7.0.97-2016 (п. 3.3): есть на iPhone, колонки не разъезжаются.
-const FACE = 'Arial, Helvetica, sans-serif'
+// Times New Roman 14 — первый шрифт из п. 3.3 ГОСТ Р 7.0.97-2016, есть на iPhone.
+const FACE = '"Times New Roman", Times, serif'
 
 export type ReceiptBlock =
   | { type: 'title'; text: string }
@@ -159,7 +159,7 @@ function printerDots(mm: number, calibration = 1) {
 export function drawReceipt(sale: Sale, settings: Settings, test = false) {
   const width = printerDots(settings.paperWidthMm, settings.widthCalibration)
   const scale = fontScale(settings) * (width / 320)
-  const body = Math.round(13 * scale)
+  const body = Math.round(14 * scale)
   const title = body
   const leading = lineGap(settings)
   const pad = Math.max(8, Math.round(10 * scale))

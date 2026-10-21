@@ -144,7 +144,7 @@ export function ReceiptScreen() {
 function ReceiptPaper({ sale }: { sale: Sale }) {
   const pos = usePos()
   const blocks = receiptBlocks(sale, pos.settings, pos.route.name === 'test-receipt')
-  const size = (pos.settings.fontSize === 'Мелкий' ? 12 : pos.settings.fontSize === 'Крупный' ? 14 : 13) * (pos.settings.charWidth / 22)
+  const size = (pos.settings.fontSize === 'Мелкий' ? 13 : pos.settings.fontSize === 'Крупный' ? 16 : 14) * (pos.settings.charWidth / 22)
   const spacing = pos.settings.lineSpacing === 'Узкий' ? 1.2 : pos.settings.lineSpacing === 'Широкий' ? 1.7 : 1.4
 
   return (

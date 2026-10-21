@@ -1,8 +1,16 @@
 import type { Sale, Settings } from '../types'
 import { formatTime, lineSum, lineTitle, receiptDate, receiptMoney } from './format'
 
-// Times New Roman 14 — первый шрифт из п. 3.3 ГОСТ Р 7.0.97-2016, есть на iPhone.
-const FACE = '"Times New Roman", Times, serif'
+// Узкий светлый гротеск: открытый аналог Hypermarket Condensed Light, с кириллицей.
+const FAMILY = '"Sofia Sans Condensed", "Arial Narrow", sans-serif'
+
+export function readyReceiptFont() {
+  return document.fonts.load(`300 16px ${FAMILY}`, 'Ресторан Rose 142.00')
+}
+
+function face(size: number) {
+  return `300 ${size}px ${FAMILY}`
+}
 
 export type ReceiptBlock =
   | { type: 'title'; text: string }
@@ -169,7 +177,7 @@ export function drawReceipt(sale: Sale, settings: Settings, test = false) {
   const ctx = canvas.getContext('2d')
   if (!ctx) return canvas
 
-  ctx.font = `${body}px ${FACE}`
+  ctx.font = face(body)
   const contentWidth = width - pad * 2
   let height = pad
 
@@ -211,8 +219,8 @@ export function drawReceipt(sale: Sale, settings: Settings, test = false) {
       height += Math.round(body * 0.35)
       continue
     }
-    const font = `${body}px ${FACE}`
-    const titleFont = `${title}px ${FACE}`
+    const font = face(body)
+    const titleFont = face(title)
     if (block.type === 'title') {
       for (const row of measureRows(block.text, titleFont, contentWidth)) pushLine(row, titleFont, 'center')
       continue

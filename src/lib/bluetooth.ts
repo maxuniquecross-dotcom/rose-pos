@@ -1,5 +1,5 @@
 import type { Sale, Settings } from '../types'
-import { canvasToEscPos, drawReceipt, textToEscPos, receiptText } from './receipt'
+import { canvasToEscPos, drawReceipt, readyReceiptFont, receiptText, textToEscPos } from './receipt'
 
 type PrintCharacteristic = {
   properties: { write: boolean; writeWithoutResponse: boolean }
@@ -113,6 +113,7 @@ export async function printOverBluetooth(sale: Sale, settings: Settings, test = 
   const characteristic = await restore(name, settings.printerId)
   if (!characteristic) throw new Error('Принтер не на связи. Откройте настройки и подключите его снова.')
 
+  await readyReceiptFont()
   const payload =
     settings.printMethod === 'Изображение'
       ? canvasToEscPos(drawReceipt(sale, settings, test), settings)

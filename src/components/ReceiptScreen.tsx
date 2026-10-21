@@ -150,13 +150,30 @@ function ReceiptPaper({ sale }: { sale: Sale }) {
   return (
     <article
       className="paper"
-      data-width={pos.settings.paperWidth}
+      data-width={pos.settings.paperWidthMm <= 60 ? '58 mm' : '80 mm'}
       style={{ fontSize: `${size}px`, lineHeight: spacing }}
     >
       {blocks.map((block, index) => {
         if (block.type === 'title') return <h1 key={index}>{block.text}</h1>
         if (block.type === 'center') return <p key={index} className="center">{block.text}</p>
         if (block.type === 'left') return <p key={index}>{block.text}</p>
+        if (block.type === 'trio') {
+          return (
+            <p key={index} className="trio">
+              {block.cells.map((cell) => (
+                <span key={cell}>{cell}</span>
+              ))}
+            </p>
+          )
+        }
+        if (block.type === 'pair') {
+          return (
+            <p key={index} className="pair">
+              <span>{block.label}</span>
+              <span>{block.value}</span>
+            </p>
+          )
+        }
         if (block.type === 'dash') return <hr key={index} />
         if (block.type === 'gap') return <div key={index} className="gap" />
         if (block.type === 'note') return <p key={index} className="note">{block.text}</p>
@@ -172,8 +189,8 @@ function ReceiptPaper({ sale }: { sale: Sale }) {
         return (
           <p key={index} className={block.head ? 'cols head' : 'cols'}>
             <span>{block.name}</span>
-            <span>{block.qty}</span>
             <span>{block.price}</span>
+            <span>{block.qty}</span>
             <span>{block.sum}</span>
           </p>
         )
@@ -186,24 +203,24 @@ function testSale(staff: string): Sale {
   return {
     id: 'test',
     createdAt: new Date().toISOString(),
-    staff: staff.trim() || 'Администратор',
-    table: '',
+    openedAt: new Date(Date.now() - 49 * 60 * 1000).toISOString(),
+    checkNo: 497216,
+    guests: 4,
+    staff: staff.trim() || 'Евгения',
+    table: '5',
     lines: [
-      {
-        id: 'test-line',
-        itemId: 'espresso',
-        name: 'Эспрессо',
-        modifiers: [],
-        unitPrice: 5,
-        qty: 1,
-        note: '',
-      },
+      { id: '1', itemId: 'shrimp', name: 'Салат с креветкой и кремом авокадо', modifiers: [], unitPrice: 27, qty: 1, note: '' },
+      { id: '2', itemId: 'salmon', name: 'Лосось, рис, гуакамолле', modifiers: [], unitPrice: 39, qty: 1, note: '' },
+      { id: '3', itemId: 'rich', name: 'Сок "Rich" 200 мл', modifiers: [], unitPrice: 3, qty: 1, note: '' },
+      { id: '4', itemId: 'steak', name: 'Стейк иньон', modifiers: [], unitPrice: 42, qty: 1, note: '' },
+      { id: '5', itemId: 'roast', name: 'Салат с ростбифом и трюфельным понзу', modifiers: [], unitPrice: 27, qty: 1, note: '' },
+      { id: '6', itemId: 'water', name: 'Вонаqua ср/г 500 мл', modifiers: [], unitPrice: 4, qty: 1, note: '' },
     ],
     discountType: 'none',
     discountValue: 0,
-    subtotal: 5,
+    subtotal: 142,
     discount: 0,
-    total: 5,
+    total: 142,
     payment: 'card',
     cashReceived: null,
     cancelled: false,

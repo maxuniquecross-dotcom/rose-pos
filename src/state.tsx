@@ -24,8 +24,22 @@ type MenuEdit = {
 
 type Draft = {
   table: string
+  guests: number
+  openedAt: string
   discountType: DiscountType
   discountValue: number
+}
+
+function emptyDraft(): Draft {
+  return { table: '', guests: 0, openedAt: '', discountType: 'none', discountValue: 0 }
+}
+
+function nextCheckNo() {
+  const key = 'rose-pos:check'
+  const current = Number(localStorage.getItem(key) || '100000')
+  const next = Number.isFinite(current) ? current + 1 : 100001
+  localStorage.setItem(key, String(next))
+  return next
 }
 
 type PosApi = {
@@ -35,6 +49,7 @@ type PosApi = {
   view: ViewMode
   route: Route
   table: string
+  guests: number
   discountType: DiscountType
   discountValue: number
   toast: string
@@ -42,6 +57,7 @@ type PosApi = {
   setView: (view: ViewMode) => void
   updateSettings: (patch: Partial<Settings>) => void
   setTable: (table: string) => void
+  setGuests: (guests: number) => void
   setDiscount: (type: DiscountType, value: number) => void
   addItem: (item: MenuItem, options?: { variant?: Variant; modifiers?: Modifier[]; qty?: number; note?: string }) => void
   setQty: (lineId: string, qty: number) => void
@@ -87,7 +103,15 @@ function loadSettings(): Settings {
     next.printDirection = 0
     next.printAlgorithm = '2.0'
     next.printMethod = 'Изображение'
-    next.formatVersion = 2
+  }
+  if (stored.formatVersion !== 3) {
+    next.paperWidthMm = 80
+    next.paperWidth = '80 mm'
+    next.formatVersion = 3
+    if (!stored.restaurantName || stored.restaurantName === 'Ресторан “Rose”') next.restaurantName = 'Ресторан "Rose"'
+    if (!stored.address || stored.address === 'г. Минск, ул. Козлова 3') next.address = 'г.Минск, ул. Козлова 3'
+    const oldFooter = 'Вознаграждение официанту приветствуется, но всегда остается на Ваше усмотрение'
+    if (!stored.footer || stored.footer === oldFooter) next.footer = `${oldFooter}.`
   }
   return next
 }
@@ -103,7 +127,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<Settings>(loadSettings)
   const [view, setViewState] = useState<ViewMode>(() => read(STORAGE.view, 'cards'))
   const [draft, setDraft] = useState<Draft>(() =>
-    read(STORAGE.draft, { table: '', discountType: 'none', discountValue: 0 }),
+    read(STORAGE.draft, emptyDraft()),
   )
   const [customItems, setCustomItems] = useState<MenuItem[]>(() => read(STORAGE.menu, []))
   const [edits, setEdits] = useState<Record<string, MenuEdit>>(() => read(STORAGE.edits, {}))
@@ -159,6 +183,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
 
   const api = useMemo<PosApi>(() => {
     const addItem: PosApi['addItem'] = (item, options) => {
+      setDraft((current) => (current.openedAt ? current : { ...current, openedAt: new Date().toISOString() }))
       const variant = options?.variant
       const modifiers = options?.modifiers ?? []
       const note = options?.note?.trim() ?? ''
@@ -207,6 +232,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
       view,
       route,
       table: draft.table,
+      guests: draft.guests,
       discountType: draft.discountType,
       discountValue: draft.discountValue,
       toast,
@@ -217,6 +243,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
         if (patch.staff !== undefined) void saveStaff(patch.staff)
       },
       setTable: (table) => setDraft((current) => ({ ...current, table })),
+      setGuests: (guests) => setDraft((current) => ({ ...current, guests: Math.max(0, Math.round(guests)) })),
       setDiscount: (discountType, discountValue) => setDraft((current) => ({ ...current, discountType, discountValue })),
       addItem,
       setQty: (lineId, qty) =>
@@ -229,7 +256,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
       removeLine: (lineId) => setCart((current) => current.filter((line) => line.id !== lineId)),
       clearCart: () => {
         setCart([])
-        setDraft({ table: '', discountType: 'none', discountValue: 0 })
+        setDraft(emptyDraft())
       },
       checkout: (payment, cashReceived) => {
         const summary = totals(cart, draft.discountType, draft.discountValue)
@@ -237,6 +264,9 @@ export function PosProvider({ children }: { children: ReactNode }) {
           id: crypto.randomUUID(),
           createdAt: new Date().toISOString(),
           staff: settings.staff.trim() || 'Администратор',
+          openedAt: draft.openedAt || new Date().toISOString(),
+          checkNo: nextCheckNo(),
+          guests: draft.guests || undefined,
           table: draft.table,
           lines: cart,
           discountType: draft.discountType,
@@ -251,7 +281,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
         }
         setSales((current) => [sale, ...current])
         setCart([])
-        setDraft({ table: '', discountType: 'none', discountValue: 0 })
+        setDraft(emptyDraft())
         void pushSale(sale)
         return sale
       },

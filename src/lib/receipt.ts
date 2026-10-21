@@ -1,10 +1,14 @@
 import type { Sale, Settings } from '../types'
-import { formatStamp, lineSum, lineTitle, money } from './format'
+import { formatTime, lineSum, lineTitle, receiptDate, receiptMoney } from './format'
+
+const FACE = '"Courier New", ui-monospace, Menlo, monospace'
 
 export type ReceiptBlock =
   | { type: 'title'; text: string }
   | { type: 'center'; text: string }
   | { type: 'left'; text: string }
+  | { type: 'trio'; cells: [string, string, string] }
+  | { type: 'pair'; label: string; value: string }
   | { type: 'dash' }
   | { type: 'cols'; name: string; qty: string; price: string; sum: string; head?: boolean }
   | { type: 'note'; text: string }
@@ -12,44 +16,55 @@ export type ReceiptBlock =
   | { type: 'footer'; text: string }
   | { type: 'gap' }
 
+function checkLabel(sale: Sale) {
+  if (sale.checkNo) return `#${sale.checkNo}`
+  let hash = 2166136261
+  for (let index = 0; index < sale.id.length; index += 1) {
+    hash ^= sale.id.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return `#${100000 + ((hash >>> 0) % 900000)}`
+}
+
 export function receiptBlocks(sale: Sale, settings: Settings, test = false): ReceiptBlock[] {
+  const opened = sale.openedAt || sale.createdAt
   const blocks: ReceiptBlock[] = [
     { type: 'title', text: settings.restaurantName },
     { type: 'center', text: settings.address },
     { type: 'gap' },
-    { type: 'left', text: `Персонал:${sale.staff}` },
-    { type: 'left', text: `Дата и время:${formatStamp(sale.createdAt)}` },
+    { type: 'trio', cells: [`Чек ${checkLabel(sale)}`, `Стол # ${sale.table.trim() || '—'}`, `Гостей ${sale.guests || '—'}`] },
+    { type: 'trio', cells: [receiptDate(sale.createdAt), `Открыт ${formatTime(opened)}`, `Печать ${formatTime(sale.createdAt)}`] },
+    { type: 'pair', label: 'Кассир:', value: sale.staff },
+    { type: 'pair', label: 'Официант:', value: sale.staff },
+    { type: 'gap' },
   ]
 
-  if (sale.table.trim()) blocks.push({ type: 'left', text: `Стол: ${sale.table.trim()}` })
   if (test) blocks.push({ type: 'center', text: 'ТЕСТОВАЯ ПЕЧАТЬ' })
 
-  blocks.push({ type: 'dash' })
-  blocks.push({ type: 'cols', head: true, name: 'Товар', qty: 'Кол-во', price: 'Цена', sum: 'Сумма' })
+  blocks.push({ type: 'cols', head: true, name: 'Блюдо', price: 'Цена', qty: 'Кол-во', sum: 'Сумма' })
 
   for (const line of sale.lines) {
     blocks.push({
       type: 'cols',
       name: lineTitle(line),
-      qty: String(line.qty),
-      price: money(line.unitPrice),
-      sum: money(lineSum(line)),
+      price: receiptMoney(line.unitPrice),
+      qty: receiptMoney(line.qty),
+      sum: receiptMoney(lineSum(line)),
     })
     if (line.note.trim()) blocks.push({ type: 'note', text: line.note.trim() })
   }
 
   blocks.push({ type: 'dash' })
-
+  blocks.push({ type: 'total', label: 'Всего:', value: receiptMoney(sale.subtotal) })
   if (sale.discount > 0) {
-    blocks.push({ type: 'total', label: 'Сумма', value: money(sale.subtotal) })
     const discountLabel = sale.discountType === 'percent' ? `Скидка ${sale.discountValue}%` : 'Скидка'
-    blocks.push({ type: 'total', label: discountLabel, value: `-${money(sale.discount)}` })
+    blocks.push({ type: 'total', label: discountLabel, value: `-${receiptMoney(sale.discount)}` })
   }
-
-  blocks.push({ type: 'total', label: 'Итого:', value: money(sale.total), strong: true })
+  blocks.push({ type: 'dash' })
+  blocks.push({ type: 'total', label: 'Итого к оплате:', value: receiptMoney(sale.total) })
+  blocks.push({ type: 'dash' })
   blocks.push({ type: 'gap' })
   blocks.push({ type: 'footer', text: settings.footer })
-  blocks.push({ type: 'dash' })
 
   for (let index = 0; index < settings.footerLength; index += 1) blocks.push({ type: 'gap' })
   return blocks
@@ -68,18 +83,29 @@ export function receiptText(sale: Sale, settings: Settings, test = false) {
   const left = (text: string) => wrapText(text, width).forEach((row) => lines.push(row))
 
   for (const block of receiptBlocks(sale, settings, test)) {
-    if (block.type === 'title' || block.type === 'center') center(block.text)
-    if (block.type === 'left' || block.type === 'footer' || block.type === 'note') left(block.text)
+    if (block.type === 'title' || block.type === 'center' || block.type === 'footer') center(block.text)
+    if (block.type === 'left' || block.type === 'note') left(block.text)
+    if (block.type === 'trio') {
+      const [a, b, c] = block.cells
+      const side = Math.max(8, Math.floor(width * 0.36))
+      const mid = Math.max(6, width - side * 2)
+      lines.push(a.slice(0, side).padEnd(side) + b.slice(0, mid).padStart(Math.floor((mid + b.length) / 2)).padEnd(mid) + c.slice(0, side).padStart(side))
+    }
+    if (block.type === 'pair') {
+      const value = block.value
+      const gap = Math.max(1, width - block.label.length - value.length)
+      lines.push(block.label + ' '.repeat(Math.min(gap, 12)) + value)
+    }
     if (block.type === 'dash') rule()
     if (block.type === 'gap') lines.push('')
     if (block.type === 'cols') {
-      const qty = block.qty.padStart(3)
-      const price = block.price.padStart(7)
-      const sum = block.sum.padStart(7)
+      const price = block.price.padStart(6)
+      const qty = block.qty.padStart(5)
+      const sum = block.sum.padStart(6)
       const nameWidth = Math.max(8, width - 19)
       const nameLines = wrapText(block.name, nameWidth)
       nameLines.forEach((name, index) => {
-        if (index === 0) lines.push(name.padEnd(nameWidth) + ' ' + qty + price + sum)
+        if (index === 0) lines.push(name.padEnd(nameWidth) + ' ' + price + ' ' + qty + ' ' + sum)
         else lines.push(name)
       })
     }
@@ -183,45 +209,56 @@ export function drawReceipt(sale: Sale, settings: Settings, test = false) {
       height += Math.round(body * 0.35)
       continue
     }
+    const font = `${body}px ${FACE}`
+    const titleFont = `${title}px ${FACE}`
     if (block.type === 'title') {
-      const font = `700 ${title}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
+      for (const row of measureRows(block.text, titleFont, contentWidth)) pushLine(row, titleFont, 'center')
+      continue
+    }
+    if (block.type === 'center' || block.type === 'footer') {
       for (const row of measureRows(block.text, font, contentWidth)) pushLine(row, font, 'center')
       continue
     }
-    if (block.type === 'center') {
-      const font = `500 ${body}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
-      for (const row of measureRows(block.text, font, contentWidth)) pushLine(row, font, 'center')
-      continue
-    }
-    if (block.type === 'left' || block.type === 'footer' || block.type === 'note') {
-      const font = `${block.type === 'note' ? 'italic ' : ''}${body}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
+    if (block.type === 'left' || block.type === 'note') {
       for (const row of measureRows(block.text, font, contentWidth)) pushLine(row, font, 'left')
       continue
     }
+    if (block.type === 'trio') {
+      height += Math.round(body * leading)
+      const [left, middle, right] = block.cells
+      drawn.push({ kind: 'text', text: left, x: pad, y: height, font, align: 'left' })
+      drawn.push({ kind: 'text', text: middle, x: width / 2, y: height, font, align: 'center' })
+      drawn.push({ kind: 'text', text: right, x: width - pad, y: height, font, align: 'right' })
+      continue
+    }
+    if (block.type === 'pair') {
+      height += Math.round(body * leading)
+      drawn.push({ kind: 'text', text: block.label, x: pad, y: height, font, align: 'left' })
+      drawn.push({ kind: 'text', text: block.value, x: pad + contentWidth * 0.42, y: height, font, align: 'left' })
+      continue
+    }
     if (block.type === 'total') {
-      const font = `${block.strong ? 700 : 500} ${block.strong ? Math.round(body * 1.25) : body}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
-      height += Math.round(body * leading * (block.strong ? 1.2 : 1))
+      height += Math.round(body * leading)
       drawn.push({ kind: 'text', text: block.label, x: pad, y: height, font, align: 'left' })
       drawn.push({ kind: 'text', text: block.value, x: width - pad, y: height, font, align: 'right' })
       continue
     }
     if (block.type === 'cols') {
-      const font = `${block.head ? 600 : 500} ${Math.round(body * (block.head ? 0.92 : 1))}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
-      const qtyW = Math.round(contentWidth * 0.14)
-      const priceW = Math.round(contentWidth * 0.22)
-      const sumW = Math.round(contentWidth * 0.24)
-      const nameW = contentWidth - qtyW - priceW - sumW
+      const priceW = Math.round(contentWidth * 0.2)
+      const qtyW = Math.round(contentWidth * 0.18)
+      const sumW = Math.round(contentWidth * 0.2)
+      const nameW = contentWidth - priceW - qtyW - sumW
       const rows = measureRows(block.name, font, nameW)
       rows.forEach((row, index) => {
         height += Math.round(body * leading)
         drawn.push({ kind: 'text', text: row, x: pad, y: height, font, align: 'left' })
         if (index === 0) {
-          drawn.push({ kind: 'text', text: block.qty, x: pad + nameW + qtyW, y: height, font, align: 'right' })
-          drawn.push({ kind: 'text', text: block.price, x: pad + nameW + qtyW + priceW, y: height, font, align: 'right' })
+          drawn.push({ kind: 'text', text: block.price, x: pad + nameW + priceW, y: height, font, align: 'right' })
+          drawn.push({ kind: 'text', text: block.qty, x: pad + nameW + priceW + qtyW, y: height, font, align: 'right' })
           drawn.push({ kind: 'text', text: block.sum, x: width - pad, y: height, font, align: 'right' })
         }
       })
-      if (!block.head) height += Math.round(body * 0.45)
+      if (!block.head) height += Math.round(body * 0.12)
     }
   }
 
@@ -241,7 +278,7 @@ export function drawReceipt(sale: Sale, settings: Settings, test = false) {
   for (const op of drawn) {
     if (op.kind === 'dash') {
       ctx.save()
-      ctx.strokeStyle = '#bdbdbd'
+      ctx.strokeStyle = '#000000'
       ctx.setLineDash([4, 4])
       ctx.beginPath()
       ctx.moveTo(pad, op.y)

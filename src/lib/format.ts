@@ -8,6 +8,10 @@ export function money(value: number) {
   return round2(value).toFixed(2).replace('.', ',')
 }
 
+export function receiptMoney(value: number) {
+  return round2(value).toFixed(2)
+}
+
 export function menuPrice(value: number) {
   if (Number.isInteger(round2(value))) return String(round2(value))
   return money(value)
@@ -25,6 +29,12 @@ export function formatStamp(iso: string) {
   const date = new Date(iso)
   const pad = (part: number) => String(part).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+}
+
+export function receiptDate(iso: string) {
+  const date = new Date(iso)
+  const pad = (part: number) => String(part).padStart(2, '0')
+  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`
 }
 
 export function formatTime(iso: string) {

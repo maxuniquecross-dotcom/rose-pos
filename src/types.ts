@@ -57,6 +57,9 @@ export type DiscountType = 'none' | 'percent' | 'amount'
 export type Sale = {
   id: string
   createdAt: string
+  openedAt?: string
+  checkNo?: number
+  guests?: number
   staff: string
   table: string
   lines: CartLine[]
@@ -114,7 +117,7 @@ export const DEFAULT_SETTINGS: Settings = {
   paperHeightMm: 30,
   printDirection: 0,
   printAlgorithm: '2.0',
-  formatVersion: 2,
+  formatVersion: 3,
   widthCalibration: 1,
   charWidth: 22,
   encoding: '中文(简体、繁体;English;한국어)',
@@ -124,9 +127,9 @@ export const DEFAULT_SETTINGS: Settings = {
   footerLength: 5,
   cashDrawer: false,
   staff: 'Администратор',
-  restaurantName: 'Ресторан “Rose”',
-  address: 'г. Минск, ул. Козлова 3',
-  footer: 'Вознаграждение официанту приветствуется, но всегда остается на Ваше усмотрение',
+  restaurantName: 'Ресторан "Rose"',
+  address: 'г.Минск, ул. Козлова 3',
+  footer: 'Вознаграждение официанту приветствуется, но всегда остается на Ваше усмотрение.',
 }
 
 export type Route =

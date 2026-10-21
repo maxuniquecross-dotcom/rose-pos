@@ -101,10 +101,21 @@ export function CheckoutScreen() {
           </label>
         )}
 
-        <label className="field light-field">
-          Стол
-          <input value={pos.table} onChange={(event) => pos.setTable(event.target.value)} placeholder="не указывать" />
-        </label>
+        <div className="guest-row">
+          <label className="field light-field">
+            Стол
+            <input value={pos.table} onChange={(event) => pos.setTable(event.target.value)} placeholder="не указывать" />
+          </label>
+          <label className="field light-field">
+            Гостей
+            <input
+              inputMode="numeric"
+              value={pos.guests ? String(pos.guests) : ''}
+              onChange={(event) => pos.setGuests(Number(event.target.value.replace(/\D/g, '')) || 0)}
+              placeholder="—"
+            />
+          </label>
+        </div>
 
         <p className="label">Оплата</p>
         <div className="seg pay">

@@ -23,9 +23,9 @@ export function SettingsScreen() {
     }
     setBusy(true)
     try {
-      const name = await connectPrinter()
-      pos.updateSettings({ printerName: name, printerType: 'Bluetooth' })
-      pos.notify(`Подключён ${name}`)
+      const printer = await connectPrinter()
+      pos.updateSettings({ printerName: printer.name, printerId: printer.id, printerType: 'Bluetooth' })
+      pos.notify(`Подключён ${printer.name}`)
     } catch (error) {
       if (error instanceof DOMException && error.name === 'NotFoundError') return
       pos.notify(error instanceof Error ? error.message : 'Не удалось подключить')
@@ -49,21 +49,33 @@ export function SettingsScreen() {
       <div className="settings-scroll">
         <Group>
           <Row label="Тип принтера" value={settings.printerType} onClick={() => setPicker({ kind: 'list', title: 'Тип принтера', key: 'printerType', options: ['Bluetooth', 'Системная печать'] })} />
-          <Row label="Подключить" value={busy ? 'Поиск…' : settings.printerName} onClick={connect} />
+          <Row label="Устройство печати" value={busy ? 'Поиск…' : settings.printerName || 'Не подключено'} onClick={connect} />
         </Group>
-        <Group hint={settings.printMethod === 'TXT' ? 'Для кириллицы на термопринтере надёжнее режим «Изображение».' : undefined}>
-          <Row label="Способ печати" value={settings.printMethod} onClick={() => setPicker({ kind: 'list', title: 'Способ печати', key: 'printMethod', options: ['TXT', 'Изображение'] })} />
+        <Group hint="Чек уходит на принтер картинкой: ширина 40 мм, алгоритм 2.0. Высота растёт вместе с заказом, чтобы строки не сжимались.">
+          <Row label="Способ печати" value={settings.printMethod} onClick={() => setPicker({ kind: 'list', title: 'Способ печати', key: 'printMethod', options: ['Изображение', 'TXT'] })} />
+          <StepRow label="Ширина бумаги" value={settings.paperWidthMm} min={20} max={80} onChange={(paperWidthMm) => pos.updateSettings({ paperWidthMm })} />
+          <StepRow label="Высота бумаги" value={settings.paperHeightMm} min={20} max={200} onChange={(paperHeightMm) => pos.updateSettings({ paperHeightMm })} />
+          <ChoiceRow
+            label="Направление печати"
+            value={String(settings.printDirection)}
+            options={['0', '90', '180', '270']}
+            suffix="°"
+            onChange={(value) => pos.updateSettings({ printDirection: Number(value) as 0 | 90 | 180 | 270 })}
+          />
+          <ChoiceRow
+            label="Алгоритм обработки"
+            value={settings.printAlgorithm}
+            options={['1.0', '2.0']}
+            onChange={(printAlgorithm) => pos.updateSettings({ printAlgorithm: printAlgorithm as '1.0' | '2.0' })}
+          />
+          <StepRow label="Количество копий" value={settings.copies} min={1} max={5} onChange={(copies) => pos.updateSettings({ copies })} />
         </Group>
         <Group>
-          <Row label="Ширина чека" value={settings.paperWidth} onClick={() => setPicker({ kind: 'list', title: 'Ширина чека', key: 'paperWidth', options: ['58 mm', '80 mm'] })} />
           <Row label="Калибровка ширины" value={settings.widthCalibration.toFixed(2)} onClick={() => setPicker({ kind: 'number', title: 'Калибровка ширины', key: 'widthCalibration', min: 0.8, max: 1.3, step: 0.05, digits: 2 })} />
           <Row label="Калибровка ширины символов" value={String(settings.charWidth)} onClick={() => setPicker({ kind: 'number', title: 'Калибровка ширины символов', key: 'charWidth', min: 14, max: 32, step: 1, digits: 0 })} />
         </Group>
         <Group>
           <Row label="Кодировка языка" value={settings.encoding} clip onClick={() => setPicker({ kind: 'list', title: 'Кодировка языка', key: 'encoding', options: ENCODINGS })} />
-        </Group>
-        <Group>
-          <Row label="Непрерывная печать" value={String(settings.copies)} onClick={() => setPicker({ kind: 'number', title: 'Непрерывная печать', key: 'copies', min: 1, max: 5, step: 1, digits: 0 })} />
         </Group>
         <Group>
           <Row label="Размер шрифта" value={settings.fontSize} onClick={() => setPicker({ kind: 'list', title: 'Размер шрифта', key: 'fontSize', options: ['Мелкий', 'Обычный', 'Крупный'] })} />
@@ -167,6 +179,63 @@ function Row({ label, value, onClick, clip = false }: { label: string; value: st
         <IconChevron />
       </span>
     </button>
+  )
+}
+
+function StepRow({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string
+  value: number
+  min: number
+  max: number
+  onChange: (value: number) => void
+}) {
+  return (
+    <div className="set-row static">
+      <span>{label}</span>
+      <span className="stepper">
+        <button type="button" aria-label="Меньше" onClick={() => onChange(Math.max(min, value - 1))}>
+          −
+        </button>
+        <b>{value}</b>
+        <button type="button" aria-label="Больше" onClick={() => onChange(Math.min(max, value + 1))}>
+          +
+        </button>
+      </span>
+    </div>
+  )
+}
+
+function ChoiceRow({
+  label,
+  value,
+  options,
+  suffix = '',
+  onChange,
+}: {
+  label: string
+  value: string
+  options: string[]
+  suffix?: string
+  onChange: (value: string) => void
+}) {
+  return (
+    <div className="set-row static choice-row">
+      <span>{label}</span>
+      <span className="choices-inline">
+        {options.map((option) => (
+          <button type="button" key={option} className={option === value ? 'on' : ''} onClick={() => onChange(option)}>
+            {option}
+            {suffix}
+          </button>
+        ))}
+      </span>
+    </div>
   )
 }
 

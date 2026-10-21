@@ -78,6 +78,20 @@ function write(key: string, value: unknown) {
   localStorage.setItem(key, JSON.stringify(value))
 }
 
+function loadSettings(): Settings {
+  const stored = read<Partial<Settings>>(STORAGE.settings, {})
+  const next: Settings = { ...DEFAULT_SETTINGS, ...stored }
+  if (stored.formatVersion !== 2) {
+    next.paperWidthMm = 40
+    next.paperHeightMm = 30
+    next.printDirection = 0
+    next.printAlgorithm = '2.0'
+    next.printMethod = 'Изображение'
+    next.formatVersion = 2
+  }
+  return next
+}
+
 function unitPrice(item: MenuItem, variant?: Variant, modifiers: Modifier[] = []) {
   const base = variant?.price ?? item.price
   return round2(base + modifiers.reduce((sum, modifier) => sum + modifier.price, 0))
@@ -86,7 +100,7 @@ function unitPrice(item: MenuItem, variant?: Variant, modifiers: Modifier[] = []
 export function PosProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartLine[]>(() => read(STORAGE.cart, []))
   const [sales, setSales] = useState<Sale[]>(() => read(STORAGE.sales, []))
-  const [settings, setSettings] = useState<Settings>(() => ({ ...DEFAULT_SETTINGS, ...read(STORAGE.settings, {}) }))
+  const [settings, setSettings] = useState<Settings>(loadSettings)
   const [view, setViewState] = useState<ViewMode>(() => read(STORAGE.view, 'cards'))
   const [draft, setDraft] = useState<Draft>(() =>
     read(STORAGE.draft, { table: '', discountType: 'none', discountValue: 0 }),

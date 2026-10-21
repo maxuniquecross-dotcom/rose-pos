@@ -696,7 +696,21 @@ input, textarea { user-select: text; -webkit-user-select: text; }
   color: #111;
 }
 .set-row > span:first-child { flex: 1; }
-.set-row:last-child, .set-field:last-child { border-bottom: 0; }
+.set-row:last-child, .set-field:last-child, .set-row.static:last-child { border-bottom: 0; }
+.set-row .stepper, .choices-inline { display: flex; align-items: center; gap: 6px; }
+.set-row .stepper button, .choices-inline button {
+  min-width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: #e7f8f6;
+  color: #12a89a;
+  font-weight: 700;
+}
+.choices-inline button.on { background: #12a89a; color: white; }
+.set-row .stepper b { min-width: 28px; text-align: center; font-variant-numeric: tabular-nums; }
+.choice-row { align-items: flex-start; }
+.choice-row .choices-inline { flex-wrap: wrap; justify-content: flex-end; max-width: 62%; }
 .set-row .value { margin-left: auto; color: #8e8e93; display: flex; align-items: center; gap: 4px; font-size: 16px; }
 .set-row .value.clip { max-width: 46%; }
 .set-row .value.clip { overflow: hidden; }

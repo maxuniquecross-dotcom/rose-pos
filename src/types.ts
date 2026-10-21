@@ -76,12 +76,20 @@ export type PrintMethod = 'TXT' | 'Изображение'
 export type PaperWidth = '58 mm' | '80 mm'
 export type FontSize = 'Мелкий' | 'Обычный' | 'Крупный'
 export type LineSpacing = 'Узкий' | 'По умолчанию' | 'Широкий'
+export type PrintDirection = 0 | 90 | 180 | 270
+export type PrintAlgorithm = '1.0' | '2.0'
 
 export type Settings = {
   printerType: PrinterType
   printerName: string
+  printerId: string
   printMethod: PrintMethod
   paperWidth: PaperWidth
+  paperWidthMm: number
+  paperHeightMm: number
+  printDirection: PrintDirection
+  printAlgorithm: PrintAlgorithm
+  formatVersion: number
   widthCalibration: number
   charWidth: number
   encoding: string
@@ -99,8 +107,14 @@ export type Settings = {
 export const DEFAULT_SETTINGS: Settings = {
   printerType: 'Bluetooth',
   printerName: '',
-  printMethod: 'TXT',
-  paperWidth: '80 mm',
+  printerId: '',
+  printMethod: 'Изображение',
+  paperWidth: '58 mm',
+  paperWidthMm: 40,
+  paperHeightMm: 30,
+  printDirection: 0,
+  printAlgorithm: '2.0',
+  formatVersion: 2,
   widthCalibration: 1,
   charWidth: 22,
   encoding: '中文(简体、繁体;English;한국어)',

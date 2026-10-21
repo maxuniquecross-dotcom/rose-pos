@@ -56,7 +56,7 @@ export function receiptBlocks(sale: Sale, settings: Settings, test = false): Rec
 }
 
 export function receiptText(sale: Sale, settings: Settings, test = false) {
-  const cols = settings.paperWidth === '58 mm' ? 32 : 48
+  const cols = Math.max(16, Math.round(settings.paperWidthMm * 0.55))
   const width = Math.max(24, Math.round(cols * settings.widthCalibration))
   const lines: string[] = []
 
@@ -123,13 +123,18 @@ function lineGap(settings: Settings) {
   return 1.38
 }
 
+function printerDots(mm: number, calibration = 1) {
+  const dots = Math.round(mm * 8 * calibration)
+  return Math.max(8, dots - (dots % 8))
+}
+
 export function drawReceipt(sale: Sale, settings: Settings, test = false) {
-  const width = Math.max(280, Math.round((settings.paperWidth === '58 mm' ? 384 : 576) * settings.widthCalibration))
-  const scale = fontScale(settings)
-  const body = Math.round(22 * scale)
-  const title = Math.round(32 * scale)
+  const width = printerDots(settings.paperWidthMm, settings.widthCalibration)
+  const scale = fontScale(settings) * (width / 320)
+  const body = Math.round(15 * scale)
+  const title = Math.round(22 * scale)
   const leading = lineGap(settings)
-  const pad = Math.round(28 * scale)
+  const pad = Math.max(8, Math.round(10 * scale))
   const blocks = receiptBlocks(sale, settings, test)
 
   const canvas = document.createElement('canvas')
@@ -202,9 +207,9 @@ export function drawReceipt(sale: Sale, settings: Settings, test = false) {
     }
     if (block.type === 'cols') {
       const font = `${block.head ? 600 : 500} ${Math.round(body * (block.head ? 0.92 : 1))}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
-      const qtyW = Math.round(70 * scale)
-      const priceW = Math.round(100 * scale)
-      const sumW = Math.round(110 * scale)
+      const qtyW = Math.round(contentWidth * 0.14)
+      const priceW = Math.round(contentWidth * 0.22)
+      const sumW = Math.round(contentWidth * 0.24)
       const nameW = contentWidth - qtyW - priceW - sumW
       const rows = measureRows(block.name, font, nameW)
       rows.forEach((row, index) => {
@@ -220,7 +225,7 @@ export function drawReceipt(sale: Sale, settings: Settings, test = false) {
     }
   }
 
-  height += pad
+  height = Math.max(height + pad, Math.round(settings.paperHeightMm * 8))
   const pixelRatio = 3
   canvas.width = width * pixelRatio
   canvas.height = Math.max(height, 200) * pixelRatio
@@ -276,31 +281,101 @@ function fitPrinterCanvas(canvas: HTMLCanvasElement) {
   return fitted
 }
 
-export function canvasToEscPos(canvas: HTMLCanvasElement) {
-  const fitted = fitPrinterCanvas(canvas)
-  const ctx = fitted.getContext('2d')
+function rotateCanvas(canvas: HTMLCanvasElement, degrees: number) {
+  if (degrees === 0) return canvas
+  const turned = document.createElement('canvas')
+  const quarter = degrees === 90 || degrees === 270
+  turned.width = quarter ? canvas.height : canvas.width
+  turned.height = quarter ? canvas.width : canvas.height
+  const ctx = turned.getContext('2d')
+  if (!ctx) return canvas
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, turned.width, turned.height)
+  ctx.translate(turned.width / 2, turned.height / 2)
+  ctx.rotate((degrees * Math.PI) / 180)
+  ctx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2)
+  return turned
+}
+
+function padWidth(canvas: HTMLCanvasElement) {
+  if (canvas.width % 8 === 0) return canvas
+  const width = canvas.width + (8 - (canvas.width % 8))
+  const padded = document.createElement('canvas')
+  padded.width = width
+  padded.height = canvas.height
+  const ctx = padded.getContext('2d')
+  if (!ctx) return canvas
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, width, canvas.height)
+  ctx.drawImage(canvas, 0, 0)
+  return padded
+}
+
+export function canvasToEscPos(canvas: HTMLCanvasElement, settings: Settings) {
+  const prepared = padWidth(rotateCanvas(fitPrinterCanvas(canvas), settings.printDirection))
+  const ctx = prepared.getContext('2d')
   if (!ctx) return new Uint8Array()
-  const { width, height } = fitted
+  const { width, height } = prepared
   const image = ctx.getImageData(0, 0, width, height)
   const widthBytes = Math.ceil(width / 8)
   const raster = new Uint8Array(widthBytes * height)
+  const gray = new Float32Array(width * height)
 
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const index = (y * width + x) * 4
-      const luminance = image.data[index] * 0.3 + image.data[index + 1] * 0.59 + image.data[index + 2] * 0.11
-      if (luminance < 170) raster[y * widthBytes + (x >> 3)] |= 0x80 >> (x & 7)
+  for (let index = 0; index < gray.length; index += 1) {
+    const offset = index * 4
+    gray[index] = image.data[offset] * 0.3 + image.data[offset + 1] * 0.59 + image.data[offset + 2] * 0.11
+  }
+
+  const mark = (x: number, y: number) => {
+    if (x < 0 || y < 0 || x >= width || y >= height) return
+    raster[y * widthBytes + (x >> 3)] |= 0x80 >> (x & 7)
+  }
+
+  if (settings.printAlgorithm === '1.0') {
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        if (gray[y * width + x] < 160) mark(x, y)
+      }
+    }
+  } else {
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const index = y * width + x
+        const old = gray[index]
+        const next = old < 128 ? 0 : 255
+        if (next === 0) mark(x, y)
+        const error = old - next
+        const spread = (dx: number, dy: number, weight: number) => {
+          const nx = x + dx
+          const ny = y + dy
+          if (nx < 0 || ny < 0 || nx >= width || ny >= height) return
+          gray[ny * width + nx] += (error * weight) / 16
+        }
+        spread(1, 0, 7)
+        spread(-1, 1, 3)
+        spread(0, 1, 5)
+        spread(1, 1, 1)
+      }
     }
   }
 
-  const header = new Uint8Array([
-    0x1d, 0x76, 0x30, 0x00,
-    widthBytes & 0xff,
-    (widthBytes >> 8) & 0xff,
-    height & 0xff,
-    (height >> 8) & 0xff,
-  ])
-  return concat(new Uint8Array([0x1b, 0x40]), header, raster, new Uint8Array([0x1b, 0x64, 0x03]))
+  const parts: Uint8Array[] = [new Uint8Array([0x1b, 0x40])]
+  const band = 200
+  for (let y = 0; y < height; y += band) {
+    const rows = Math.min(band, height - y)
+    parts.push(
+      new Uint8Array([
+        0x1d, 0x76, 0x30, 0x00,
+        widthBytes & 0xff,
+        (widthBytes >> 8) & 0xff,
+        rows & 0xff,
+        (rows >> 8) & 0xff,
+      ]),
+      raster.slice(y * widthBytes, (y + rows) * widthBytes),
+    )
+  }
+  parts.push(new Uint8Array([0x1b, 0x64, 0x03]))
+  return concat(...parts)
 }
 
 export function textToEscPos(text: string, settings: Settings) {

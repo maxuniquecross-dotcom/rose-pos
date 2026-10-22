@@ -1,15 +1,10 @@
 import type { Sale, Settings } from '../types'
 import { formatTime, lineSum, lineTitle, receiptDate, receiptMoney } from './format'
 
-// Узкий светлый гротеск: открытый аналог Hypermarket Condensed Light, с кириллицей.
-const FAMILY = '"Sofia Sans Condensed", "Arial Narrow", sans-serif'
-
-export function readyReceiptFont() {
-  return document.fonts.load(`300 16px ${FAMILY}`, 'Ресторан Rose 142.00')
-}
+const FACE = '"Courier New", ui-monospace, Menlo, monospace'
 
 function face(size: number) {
-  return `300 ${size}px ${FAMILY}`
+  return `${size}px ${FACE}`
 }
 
 export type ReceiptBlock =

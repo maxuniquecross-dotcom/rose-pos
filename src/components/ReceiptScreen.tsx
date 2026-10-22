@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Sale } from '../types'
 import { money } from '../lib/format'
-import { receiptBlocks, receiptText, drawReceipt, readyReceiptFont } from '../lib/receipt'
+import { receiptBlocks, receiptText, drawReceipt } from '../lib/receipt'
 import { printOverBluetooth } from '../lib/bluetooth'
 import { usePos } from '../state'
 import { Confirm } from './overlays'
@@ -30,7 +30,6 @@ export function ReceiptScreen() {
   }
 
   const print = async () => {
-    await readyReceiptFont()
     if (pos.settings.printerType === 'Bluetooth' && pos.settings.printerName) {
       try {
         await printOverBluetooth(sale, pos.settings, test)
@@ -46,7 +45,6 @@ export function ReceiptScreen() {
   }
 
   const share = async () => {
-    await readyReceiptFont()
     const text = receiptText(sale, pos.settings, test)
     const canvas = drawReceipt(sale, pos.settings, test)
     const file = await new Promise<File | null>((resolve) => {

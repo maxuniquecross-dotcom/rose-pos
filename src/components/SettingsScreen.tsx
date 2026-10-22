@@ -51,7 +51,7 @@ export function SettingsScreen() {
           <Row label="Тип принтера" value={settings.printerType} onClick={() => setPicker({ kind: 'list', title: 'Тип принтера', key: 'printerType', options: ['Bluetooth', 'Системная печать'] })} />
           <Row label="Устройство печати" value={busy ? 'Поиск…' : settings.printerName || 'Не подключено'} onClick={connect} />
         </Group>
-        <Group hint="Чек печатается узким светлым шрифтом, близким к Hypermarket Condensed Light.">
+        <Group hint="Чек печатается моноширинным шрифтом Courier New.">
           <Row label="Способ печати" value={settings.printMethod} onClick={() => setPicker({ kind: 'list', title: 'Способ печати', key: 'printMethod', options: ['Изображение', 'TXT'] })} />
           <StepRow label="Ширина бумаги" value={settings.paperWidthMm} min={20} max={80} onChange={(paperWidthMm) => pos.updateSettings({ paperWidthMm })} />
           <StepRow label="Высота бумаги" value={settings.paperHeightMm} min={20} max={200} onChange={(paperHeightMm) => pos.updateSettings({ paperHeightMm })} />

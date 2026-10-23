@@ -1,10 +1,19 @@
 import type { Sale, Settings } from '../types'
 import { formatTime, lineSum, lineTitle, receiptDate, receiptMoney } from './format'
 
-const FACE = '"Courier New", ui-monospace, Menlo, monospace'
+const FACE = '"IBM Plex Mono", ui-monospace, monospace'
+
+export function readyReceiptFont() {
+  return document.fonts.load(`16px ${FACE}`, 'Ресторан Rose Bonaqua 142.00')
+}
 
 function face(size: number) {
-  return `${size}px ${FACE}`
+  return `400 ${size}px ${FACE}`
+}
+
+// В старых чеках вода записана смесью кириллицы и латиницы: Вонаqua, Boнaqua.
+function dishName(name: string) {
+  return name.replace(/[ВBвb][ОоOo][НнNn][АаAa]qua/gi, 'Bonaqua')
 }
 
 export type ReceiptBlock =
@@ -38,8 +47,8 @@ export function receiptBlocks(sale: Sale, settings: Settings, test = false): Rec
     { type: 'gap' },
     { type: 'trio', cells: [`Чек ${checkLabel(sale)}`, `Стол # ${sale.table.trim() || '—'}`, `Гостей ${sale.guests || '—'}`] },
     { type: 'trio', cells: [receiptDate(sale.createdAt), `Открыт ${formatTime(opened)}`, `Печать ${formatTime(sale.createdAt)}`] },
-    { type: 'pair', label: 'Кассир:', value: sale.cashier?.trim() || sale.staff },
-    { type: 'pair', label: 'Официант:', value: sale.waiter?.trim() || sale.staff },
+    { type: 'left', text: `Кассир: ${sale.cashier?.trim() || sale.staff}` },
+    { type: 'left', text: `Официант: ${sale.waiter?.trim() || sale.staff}` },
     { type: 'gap' },
   ]
 
@@ -51,7 +60,7 @@ export function receiptBlocks(sale: Sale, settings: Settings, test = false): Rec
   for (const line of sale.lines) {
     blocks.push({
       type: 'cols',
-      name: lineTitle(line),
+      name: dishName(lineTitle(line)),
       price: receiptMoney(line.unitPrice),
       qty: receiptMoney(line.qty),
       sum: receiptMoney(lineSum(line)),

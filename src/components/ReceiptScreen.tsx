@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Sale } from '../types'
 import { money } from '../lib/format'
-import { receiptBlocks, receiptText, drawReceipt } from '../lib/receipt'
+import { receiptBlocks, receiptText, drawReceipt, readyReceiptFont } from '../lib/receipt'
 import { printOverBluetooth } from '../lib/bluetooth'
 import { usePos } from '../state'
 import { Confirm } from './overlays'
@@ -30,6 +30,7 @@ export function ReceiptScreen() {
   }
 
   const print = async () => {
+    await readyReceiptFont()
     if (pos.settings.printerType === 'Bluetooth' && pos.settings.printerName) {
       try {
         await printOverBluetooth(sale, pos.settings, test)
@@ -45,6 +46,7 @@ export function ReceiptScreen() {
   }
 
   const share = async () => {
+    await readyReceiptFont()
     const text = receiptText(sale, pos.settings, test)
     const canvas = drawReceipt(sale, pos.settings, test)
     const file = await new Promise<File | null>((resolve) => {
@@ -216,7 +218,7 @@ function testSale(staff: string): Sale {
       { id: '3', itemId: 'rich', name: 'Сок "Rich" 200 мл', modifiers: [], unitPrice: 3, qty: 1, note: '' },
       { id: '4', itemId: 'steak', name: 'Стейк иньон', modifiers: [], unitPrice: 42, qty: 1, note: '' },
       { id: '5', itemId: 'roast', name: 'Салат с ростбифом и трюфельным понзу', modifiers: [], unitPrice: 27, qty: 1, note: '' },
-      { id: '6', itemId: 'water', name: 'Вонаqua ср/г 500 мл', modifiers: [], unitPrice: 4, qty: 1, note: '' },
+      { id: '6', itemId: 'water', name: 'Bonaqua', modifiers: [], unitPrice: 4, qty: 1, note: '' },
     ],
     discountType: 'none',
     discountValue: 0,

@@ -152,3 +152,118 @@ create policy "обновлять чек" on public.sales
   for update to authenticated
   using (user_id = auth.uid() or public.is_admin())
   with check (user_id = auth.uid() or public.is_admin());
+
+-- Один аккаунт — одно устройство. Пока смена «жива» (был сигнал за последние 20 минут),
+-- войти с другого телефона нельзя. Прямое обновление профиля устройство не перехватывает.
+
+alter table public.profiles
+  add column if not exists active_device_id text,
+  add column if not exists active_at timestamptz;
+
+create or replace function public.keep_device_lock()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if current_setting('rose.device_claim', true) is distinct from '1' then
+    new.active_device_id := old.active_device_id;
+    new.active_at := old.active_at;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists profiles_keep_device on public.profiles;
+create trigger profiles_keep_device
+  before update on public.profiles
+  for each row execute function public.keep_device_lock();
+
+create or replace function public.claim_device(device text)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  row public.profiles;
+begin
+  if auth.uid() is null then
+    return 'Нужно войти';
+  end if;
+  if device is null or length(trim(device)) < 8 or length(device) > 80 then
+    return 'Устройство не распознано';
+  end if;
+  select * into row from public.profiles where id = auth.uid() for update;
+  if row.id is null then
+    return 'Профиль не найден';
+  end if;
+  if row.active_device_id is not null
+     and row.active_device_id <> device
+     and row.active_at is not null
+     and row.active_at > now() - interval '20 minutes' then
+    return 'Этот аккаунт уже открыт на другом устройстве';
+  end if;
+  perform set_config('rose.device_claim', '1', true);
+  update public.profiles
+    set active_device_id = device, active_at = now()
+    where id = auth.uid();
+  return 'ok';
+end;
+$$;
+
+create or replace function public.touch_device(device text)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  row public.profiles;
+begin
+  if auth.uid() is null then
+    return 'Нужно войти';
+  end if;
+  select * into row from public.profiles where id = auth.uid() for update;
+  if row.id is null then
+    return 'Профиль не найден';
+  end if;
+  if row.active_device_id is not null
+     and row.active_device_id <> device
+     and row.active_at is not null
+     and row.active_at > now() - interval '20 minutes' then
+    return 'Этот аккаунт уже открыт на другом устройстве';
+  end if;
+  perform set_config('rose.device_claim', '1', true);
+  update public.profiles
+    set active_device_id = device, active_at = now()
+    where id = auth.uid();
+  return 'ok';
+end;
+$$;
+
+create or replace function public.release_device(device text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    return;
+  end if;
+  perform set_config('rose.device_claim', '1', true);
+  update public.profiles
+    set active_device_id = null, active_at = null
+    where id = auth.uid() and active_device_id = device;
+end;
+$$;
+
+revoke all on function public.keep_device_lock() from public, anon, authenticated;
+revoke all on function public.claim_device(text) from public, anon;
+revoke all on function public.touch_device(text) from public, anon;
+revoke all on function public.release_device(text) from public, anon;
+grant execute on function public.claim_device(text) to authenticated;
+grant execute on function public.touch_device(text) to authenticated;
+grant execute on function public.release_device(text) to authenticated;

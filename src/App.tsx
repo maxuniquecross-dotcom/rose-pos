@@ -27,7 +27,7 @@ function Gate() {
     if (auth.profile?.staff) pos.updateSettings({ staff: auth.profile.staff })
   }, [auth.profile?.id])
 
-  if (auth.configured && auth.loading) {
+  if (auth.configured && (auth.loading || (auth.session && !auth.deviceReady))) {
     return (
       <div className="phone">
         <div className="boot">Вход…</div>

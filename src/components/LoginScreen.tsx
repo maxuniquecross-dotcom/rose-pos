@@ -39,7 +39,7 @@ export function LoginScreen() {
           autoComplete="current-password"
         />
       </label>
-      {error && <p className="login-error">{error}</p>}
+      {(error || auth.notice) && <p className="login-error">{error || auth.notice}</p>}
       <button type="submit" className="btn primary" disabled={busy || login.trim().length < 2 || password.length < 8}>
         {busy ? 'Входим…' : 'Войти'}
       </button>

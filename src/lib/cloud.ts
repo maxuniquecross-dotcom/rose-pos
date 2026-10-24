@@ -90,15 +90,16 @@ export async function pullMenu() {
 }
 
 export async function saveMenuOverride(id: string, kind: MenuOverride['kind'], payload: MenuOverride['payload'], updatedAt: string) {
-  if (!supabase) return
+  if (!supabase) return false
   const { data } = await supabase.auth.getSession()
-  if (!data.session) return
-  await supabase.from('menu_overrides').upsert({ id, kind, payload, updated_at: updatedAt })
+  if (!data.session) return false
+  const { error } = await supabase.from('menu_overrides').upsert({ id, kind, payload, updated_at: updatedAt })
+  return !error
 }
 
 export async function clearMenuOverride(id: string) {
   const updatedAt = new Date().toISOString()
-  await saveMenuOverride(id, 'gone', {}, updatedAt)
+  return saveMenuOverride(id, 'gone', {}, updatedAt)
 }
 
 function newer(left?: string, right?: string) {

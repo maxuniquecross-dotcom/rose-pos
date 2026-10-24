@@ -366,8 +366,9 @@ export function PosProvider({ children }: { children: ReactNode }) {
         const updatedAt = new Date().toISOString()
         const stored = { ...item, updatedAt }
         setCustomItems((current) => [stored, ...current])
-        void saveMenuOverride(item.id, 'custom', stored, updatedAt)
-        notify(accountId ? 'Позиция добавлена у всех' : 'Позиция добавлена в меню')
+        void saveMenuOverride(item.id, 'custom', stored, updatedAt).then((shared) =>
+          notify(shared ? 'Позиция добавлена у всех' : 'Позиция добавлена в меню'),
+        )
       },
       updateMenuItem: (itemId, patch) => {
         const name = patch.name.trim()
@@ -393,27 +394,30 @@ export function PosProvider({ children }: { children: ReactNode }) {
             ),
           )
           const stored = customItems.find((item) => item.id === itemId)
-          if (stored) {
-            void saveMenuOverride(
-              itemId,
-              'custom',
-              {
-                ...stored,
-                name,
-                price,
+          const saved = stored
+            ? saveMenuOverride(
+                itemId,
+                'custom',
+                {
+                  ...stored,
+                  name,
+                  price,
+                  updatedAt,
+                  variants: stored.variants?.map((variant) => {
+                    const next = variants?.find((entry) => entry.id === variant.id)
+                    return next ? { ...variant, price: next.price } : variant
+                  }),
+                },
                 updatedAt,
-                variants: stored.variants?.map((variant) => {
-                  const next = variants?.find((entry) => entry.id === variant.id)
-                  return next ? { ...variant, price: next.price } : variant
-                }),
-              },
-              updatedAt,
-            )
-          }
+              )
+            : Promise.resolve(false)
+          void saved.then((shared) => notify(shared ? 'Блюдо обновлено у всех' : 'Блюдо обновлено'))
         } else {
           const record = { name, price, variants, updatedAt }
           setEdits((current) => ({ ...current, [itemId]: record }))
-          void saveMenuOverride(itemId, 'edit', record, updatedAt)
+          void saveMenuOverride(itemId, 'edit', record, updatedAt).then((shared) =>
+            notify(shared ? 'Блюдо обновлено у всех' : 'Блюдо обновлено'),
+          )
         }
         setCart((current) =>
           current.map((line) => {
@@ -424,7 +428,6 @@ export function PosProvider({ children }: { children: ReactNode }) {
             return { ...line, name, unitPrice: round2(base + extra) }
           }),
         )
-        notify(accountId ? 'Блюдо обновлено у всех' : 'Блюдо обновлено')
       },
       resetMenuItem: (itemId) => {
         const original = MENU.find((item) => item.id === itemId)
@@ -454,8 +457,9 @@ export function PosProvider({ children }: { children: ReactNode }) {
           delete next[itemId]
           return next
         })
-        void clearMenuOverride(itemId)
-        notify(accountId ? 'Позиция убрана у всех' : 'Позиция убрана из меню')
+        void clearMenuOverride(itemId).then((shared) =>
+          notify(shared ? 'Позиция убрана у всех' : 'Позиция убрана из меню'),
+        )
       },
       notify,
       preview,

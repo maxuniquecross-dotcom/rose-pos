@@ -267,3 +267,48 @@ revoke all on function public.release_device(text) from public, anon;
 grant execute on function public.claim_device(text) to authenticated;
 grant execute on function public.touch_device(text) to authenticated;
 grant execute on function public.release_device(text) to authenticated;
+
+-- Общее меню: правка названия и цены видна на всех телефонах.
+create table if not exists public.menu_overrides (
+  id text primary key,
+  kind text not null check (kind in ('edit', 'custom', 'gone')),
+  payload jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.menu_overrides drop constraint if exists menu_overrides_kind_check;
+alter table public.menu_overrides
+  add constraint menu_overrides_kind_check check (kind in ('edit', 'custom', 'gone'));
+
+alter table public.menu_overrides enable row level security;
+revoke all on table public.menu_overrides from anon;
+grant select, insert, update, delete on table public.menu_overrides to authenticated;
+
+drop policy if exists "читать меню" on public.menu_overrides;
+create policy "читать меню" on public.menu_overrides
+  for select to authenticated
+  using (true);
+
+drop policy if exists "добавлять меню" on public.menu_overrides;
+create policy "добавлять меню" on public.menu_overrides
+  for insert to authenticated
+  with check (true);
+
+drop policy if exists "менять меню" on public.menu_overrides;
+create policy "менять меню" on public.menu_overrides
+  for update to authenticated
+  using (true)
+  with check (true);
+
+drop policy if exists "убирать меню" on public.menu_overrides;
+create policy "убирать меню" on public.menu_overrides
+  for delete to authenticated
+  using (true);
+
+do $$
+begin
+  alter publication supabase_realtime add table public.menu_overrides;
+exception
+  when duplicate_object then null;
+  when undefined_object then null;
+end $$;

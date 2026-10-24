@@ -1,9 +1,9 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { GROUPS, MENU } from './data/menu'
 import type { CartLine, DiscountType, GroupId, MenuItem, Modifier, Payment, Route, Sale, Settings, Variant, ViewMode } from './types'
 import { DEFAULT_SETTINGS } from './types'
 import { round2, totals } from './lib/format'
-import { flushOutbox, mergeSales, pullMySales, pushCancel, pushSale, saveStaff } from './lib/cloud'
+import { clearMenuOverride, flushOutbox, mergeMenu, mergeSales, pullMenu, pullMySales, pushCancel, pushSale, saveMenuOverride, saveStaff, type MenuEditRecord } from './lib/cloud'
 import { supabase } from './lib/supabase'
 
 const STORAGE = {
@@ -16,11 +16,7 @@ const STORAGE = {
   edits: 'rose-pos:edits',
 }
 
-type MenuEdit = {
-  name: string
-  price: number
-  variants?: { id: string; price: number }[]
-}
+type MenuEdit = MenuEditRecord
 
 type Draft = {
   table: string
@@ -178,6 +174,39 @@ export function PosProvider({ children }: { children: ReactNode }) {
   useEffect(() => write(STORAGE.menu, customItems), [customItems])
   useEffect(() => write(STORAGE.edits, edits), [edits])
 
+  const editsRef = useRef(edits)
+  const customRef = useRef(customItems)
+  editsRef.current = edits
+  customRef.current = customItems
+
+  useEffect(() => {
+    if (!supabase || !accountId) return
+    const client = supabase
+    let stop = false
+    const sync = async () => {
+      const rows = await pullMenu()
+      if (stop || !rows) return
+      const merged = mergeMenu(editsRef.current, customRef.current, rows)
+      if (JSON.stringify(editsRef.current) !== JSON.stringify(merged.edits)) setEdits(merged.edits)
+      if (JSON.stringify(customRef.current) !== JSON.stringify(merged.custom)) setCustomItems(merged.custom)
+      for (const row of merged.push) void saveMenuOverride(row.id, row.kind, row.payload, row.updated_at)
+    }
+    void sync()
+    const timer = window.setInterval(() => void sync(), 15000)
+    const onFocus = () => void sync()
+    window.addEventListener('focus', onFocus)
+    const channel = client
+      .channel('menu-overrides')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_overrides' }, () => void sync())
+      .subscribe()
+    return () => {
+      stop = true
+      window.clearInterval(timer)
+      window.removeEventListener('focus', onFocus)
+      void client.removeChannel(channel)
+    }
+  }, [accountId])
+
   useEffect(() => {
     if (!supabase) return
     const apply = (userId: string | null) => {
@@ -334,13 +363,17 @@ export function PosProvider({ children }: { children: ReactNode }) {
           price: round2(price),
           custom: true,
         }
-        setCustomItems((current) => [item, ...current])
-        notify('Позиция добавлена в меню')
+        const updatedAt = new Date().toISOString()
+        const stored = { ...item, updatedAt }
+        setCustomItems((current) => [stored, ...current])
+        void saveMenuOverride(item.id, 'custom', stored, updatedAt)
+        notify(accountId ? 'Позиция добавлена у всех' : 'Позиция добавлена в меню')
       },
       updateMenuItem: (itemId, patch) => {
         const name = patch.name.trim()
         const price = round2(patch.price)
         const variants = patch.variants?.map((variant) => ({ id: variant.id, price: round2(variant.price) }))
+        const updatedAt = new Date().toISOString()
         const custom = customItems.some((item) => item.id === itemId)
         if (custom) {
           setCustomItems((current) =>
@@ -350,6 +383,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
                     ...item,
                     name,
                     price,
+                    updatedAt,
                     variants: item.variants?.map((variant) => {
                       const next = variants?.find((entry) => entry.id === variant.id)
                       return next ? { ...variant, price: next.price } : variant
@@ -358,8 +392,28 @@ export function PosProvider({ children }: { children: ReactNode }) {
                 : item,
             ),
           )
+          const stored = customItems.find((item) => item.id === itemId)
+          if (stored) {
+            void saveMenuOverride(
+              itemId,
+              'custom',
+              {
+                ...stored,
+                name,
+                price,
+                updatedAt,
+                variants: stored.variants?.map((variant) => {
+                  const next = variants?.find((entry) => entry.id === variant.id)
+                  return next ? { ...variant, price: next.price } : variant
+                }),
+              },
+              updatedAt,
+            )
+          }
         } else {
-          setEdits((current) => ({ ...current, [itemId]: { name, price, variants } }))
+          const record = { name, price, variants, updatedAt }
+          setEdits((current) => ({ ...current, [itemId]: record }))
+          void saveMenuOverride(itemId, 'edit', record, updatedAt)
         }
         setCart((current) =>
           current.map((line) => {
@@ -370,7 +424,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
             return { ...line, name, unitPrice: round2(base + extra) }
           }),
         )
-        notify('Блюдо обновлено')
+        notify(accountId ? 'Блюдо обновлено у всех' : 'Блюдо обновлено')
       },
       resetMenuItem: (itemId) => {
         const original = MENU.find((item) => item.id === itemId)
@@ -379,6 +433,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
           delete next[itemId]
           return next
         })
+        void clearMenuOverride(itemId)
         if (original) {
           setCart((current) =>
             current.map((line) => {
@@ -399,7 +454,8 @@ export function PosProvider({ children }: { children: ReactNode }) {
           delete next[itemId]
           return next
         })
-        notify('Позиция убрана из меню')
+        void clearMenuOverride(itemId)
+        notify(accountId ? 'Позиция убрана у всех' : 'Позиция убрана из меню')
       },
       notify,
       preview,

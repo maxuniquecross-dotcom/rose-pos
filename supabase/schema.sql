@@ -153,7 +153,7 @@ create policy "обновлять чек" on public.sales
   using (user_id = auth.uid() or public.is_admin())
   with check (user_id = auth.uid() or public.is_admin());
 
--- Один аккаунт — одно устройство. Пока смена «жива» (был сигнал за последние 20 минут),
+-- Один аккаунт — одно устройство. Пока смена «жива» (был сигнал за последнюю минуту),
 -- войти с другого телефона нельзя. Прямое обновление профиля устройство не перехватывает.
 
 alter table public.profiles
@@ -202,7 +202,7 @@ begin
   if row.active_device_id is not null
      and row.active_device_id <> device
      and row.active_at is not null
-     and row.active_at > now() - interval '20 minutes' then
+     and row.active_at > now() - interval '1 minute' then
     return 'Этот аккаунт уже открыт на другом устройстве';
   end if;
   perform set_config('rose.device_claim', '1', true);
@@ -232,7 +232,7 @@ begin
   if row.active_device_id is not null
      and row.active_device_id <> device
      and row.active_at is not null
-     and row.active_at > now() - interval '20 minutes' then
+     and row.active_at > now() - interval '1 minute' then
     return 'Этот аккаунт уже открыт на другом устройстве';
   end if;
   perform set_config('rose.device_claim', '1', true);
